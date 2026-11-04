@@ -1,7 +1,7 @@
 /* SWAG 行政平台設定：部署後只要改這兩行 */
 window.PF_CONFIG = {
   // Apps Script「部署 › 網頁應用程式」的網址（/exec 結尾）
- API_URL: 'https://script.google.com/macros/s/AKfycbxNVoD5P9vZy7j_DGvl34nnZ6jU5XiTJJrANK1QniLEAEs-EZiu2vzTNO978Z8d9yaO/exec',
+      API_URL: 'https://script.google.com/macros/s/AKfycbxNVoD5P9vZy7j_DGvl34nnZ6jU5XiTJJrANK1QniLEAEs-EZiu2vzTNO978Z8d9yaO/exec',
   CLIENT_ID: '232346306074-il6ggn2dcuioh3tng0orev3b8hnoagrv.apps.googleusercontent.com',
   DOMAIN: 'swag.live'
 };
