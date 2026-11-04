@@ -33,6 +33,9 @@ nav button[aria-current=true]{background:#fff;color:#0f766e;box-shadow:0 2px 6px
 main{max-width:1320px;margin:0 auto;padding:24px 16px 60px}
 main.frame{max-width:none;padding:0}
 .view-frame{display:block;width:100%;height:calc(100vh - var(--hd));border:0;background:var(--bg)}
+.view-frame.with-sub{height:calc(100vh - var(--hd) - 56px)}
+.frame-sub{height:56px;display:flex;align-items:center;max-width:1320px;margin:0 auto;padding:0 16px}
+.frame-sub .subtabs{margin:0}
 h2{font-size:20px;margin:0;letter-spacing:.2px}
 .hello{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:18px}
 .hello h2{font-size:22px}
@@ -53,7 +56,12 @@ h2{font-size:20px;margin:0;letter-spacing:.2px}
 .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--mc,var(--accent))}
 .card h3{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
 .card h3 .go{margin-left:auto;font-size:12.5px;color:var(--mc,var(--accent));border:0;background:none;font-weight:600}
-.m-legal{--mc:var(--rose)}.m-contract{--mc:var(--blue)}.m-work{--mc:var(--accent)}.m-pt{--mc:var(--amber)}.m-asset{--mc:var(--violet)}
+.m-legal{--mc:var(--rose)}.m-doc{--mc:#0e7490}.k-doc{--mcs:#e0f2f7}
+li.click{cursor:pointer;border-radius:6px}li.click:hover .t{color:var(--accent)}
+.people{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.person{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px}
+.person .ph{display:flex;align-items:center;gap:8px}.person .dot{width:10px;height:10px;border-radius:50%}
+.load{height:5px;background:var(--sunken);border-radius:99px;overflow:hidden}.load i{display:block;height:100%;background:linear-gradient(90deg,#0f8a78,#14b8a6)}.m-contract{--mc:var(--blue)}.m-work{--mc:var(--accent)}.m-pt{--mc:var(--amber)}.m-asset{--mc:var(--violet)}
 .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:20px}
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow);display:grid;grid-template-columns:auto 1fr;gap:2px 12px;align-items:center;text-align:left}
 button.kpi:hover{border-color:#c9cfdc}
@@ -172,16 +180,23 @@ let ME = null;           // {email,name,perm,isOwner,settings}
 let view = "home";
 const frames = {};       // 已載入的 iframe
 
+const isFT = p => p.work === "正職";
 const MODULES = [
   {id: "home", name: "首頁", show: () => true},
-  {id: "work", name: "工作台", show: p => p.work === "正職"},
+  {id: "work", name: p => isFT(p) ? "工作台" : "我的工作", show: p => p.work !== "—"},
   {id: "pt", name: "PT 排班", show: p => p.work !== "—"},
+  {id: "sop", name: "SOP", show: p => p.work !== "—"},
   {id: "contracts", name: "合約庫", show: p => p.contracts !== "—"},
+  {id: "docs", name: "函文", show: p => p.docs !== "—"},
   {id: "legal", name: "法務期限", show: p => p.legal !== "—"},
   {id: "assets", name: "設備資產", show: p => p.assets !== "—"},
-  {id: "settings", name: "設定", show: p => p.isAdmin}
+  {id: "settings", name: "設定", show: p => p.isAdmin || isFT(p)},
+  {id: "worksettings", hidden: true, parent: "settings", show: p => isFT(p)}
 ];
 const allowed = id => { const m = MODULES.find(x => x.id === id); return !!(m && ME && m.show(ME.perm)); };
+/* 工作台（同一個 iframe）裡各分頁對應的平台選單 */
+const WORK_TAB = {work: "tasks", pt: "schedule", sop: "sop", worksettings: "settings"};
+const TAB_VIEW = {tasks: "work", schedule: "pt", sop: "sop", settings: "worksettings", overview: "work"};
 
 /* ================= 登入 ================= */
 function showLogin(msg) {
@@ -224,6 +239,7 @@ function startApp() {
   const p = ME.perm, roles = [];
   if (p.work !== "—") roles.push("工作台：" + p.work);
   if (p.contracts !== "—") roles.push("合約庫：" + p.contracts + (p.contracts === "部門" ? "（" + p.depts.join("、") + "）" : ""));
+  if (p.docs !== "—") roles.push("函文：" + p.docs);
   if (p.legal !== "—") roles.push("法務期限：" + p.legal);
   if (p.assets !== "—") roles.push("設備資產：" + p.assets);
   if (p.isAdmin) roles.push("平台管理員");
@@ -234,7 +250,8 @@ function startApp() {
 }
 
 function renderNav() {
-  $("#nav").innerHTML = MODULES.filter(m => m.show(ME.perm)).map(m => `<button data-go="${m.id}" aria-current="${m.id === view}">${m.name}</button>`).join("");
+  const cur = (MODULES.find(m => m.id === view) || {}).parent || view;
+  $("#nav").innerHTML = MODULES.filter(m => !m.hidden && m.show(ME.perm)).map(m => `<button data-go="${m.id}" aria-current="${m.id === cur}">${typeof m.name === "function" ? m.name(ME.perm) : m.name}</button>`).join("");
 }
 
 /* ================= 路由 ================= */
@@ -243,22 +260,23 @@ function go(id) { if (location.hash !== "#" + id) location.hash = id; else route
 function route() {
   if (!ME) return;
   let id = (location.hash || "#home").slice(1);
+  if (id === "settings" && ME && !ME.perm.isAdmin && isFT(ME.perm)) id = "worksettings";
   if (!allowed(id)) id = "home";
   view = id;
   renderNav();
   const main = $("#main");
-  const isFrame = id === "work" || id === "pt" || id === "contracts" || id === "assets";
+  const isFrame = id in WORK_TAB || id === "contracts" || id === "assets";
   main.className = isFrame ? "frame" : "";
   [...main.children].forEach(c => { if (c.tagName !== "IFRAME") c.remove(); });
   Object.values(frames).forEach(f => f.hidden = true);
   if (isFrame) return showFrame(id);
   const sec = document.createElement("section");
   main.appendChild(sec);
-  ({home: renderHome, legal: renderLegal, settings: renderSettings})[id](sec);
+  ({home: renderHome, legal: renderLegal, docs: renderDocs, settings: renderSettings})[id](sec);
 }
 
 function showFrame(id) {
-  const key = id === "pt" ? "work" : id;
+  const key = id in WORK_TAB ? "work" : id;
   let f = frames[key];
   if (!f) {
     f = document.createElement("iframe");
@@ -268,35 +286,44 @@ function showFrame(id) {
     $("#main").appendChild(f);
     frames[key] = f;
   }
+  // 工作台設定：上面放一排設定分頁，方便回到平台的權限設定
+  if (id === "worksettings" && ME.perm.isAdmin) { const bar = document.createElement("div"); bar.className = "frame-sub"; bar.innerHTML = settingsTabs("work"); $("#main").insertBefore(bar, f); f.classList.add("with-sub"); }
+  else f.classList.remove("with-sub");
   f.hidden = false;
-  if (key === "work") workTab(f, id === "pt" ? "schedule" : "");
+  if (key === "work") workTab(f, WORK_TAB[id], workTab.pendingTask);
+  workTab.pendingTask = "";
 }
-/** 「PT 排班」和「工作台」是同一個模組，切換時幫它點到對應的分頁 */
-function workTab(f, tab) {
+/** 工作台、PT 排班、SOP、工作台設定都是同一個工作台 iframe：切換時叫它換分頁 */
+function workTab(f, tab, taskId) {
   let n = 0;
-  const tryClick = () => {
-    try {
-      const doc = f.contentDocument;
-      const st = doc && doc.querySelector("#status");
-      if (st && /已同步|同步失敗|版本/.test(st.textContent)) {
-        const cur = doc.querySelector('nav.tabs button[aria-selected="true"]');
-        const curTab = cur ? cur.dataset.tab : "";
-        let want = tab;
-        if (tab === "schedule") { if (curTab && curTab !== "schedule") workTab.last = curTab; }
-        else if (curTab === "schedule" && ME.perm.work === "正職") want = workTab.last || "overview";
-        const b = want && doc.querySelector(`nav.tabs button[data-tab="${want}"]`);
-        if (b && b.getAttribute("aria-selected") !== "true") b.click();
-        return;
-      }
-    } catch (e) {}
-    if (++n < 120) setTimeout(tryClick, 150);
+  const go2 = () => {
+    let w = null;
+    try { w = f.contentWindow; } catch (e) {}
+    if (w && w.__pf && w.__pf.ready()) {
+      w.__pf.setTab(tab);
+      if (taskId) w.__pf.openTask(taskId);
+      return;
+    }
+    if (++n < 200) setTimeout(go2, 150);
   };
-  tryClick();
+  go2();
 }
+/* 工作台裡自己切了分頁（例如點「今日 PT 檢核 ›」）：平台選單跟著換 */
+window.__pfWorkTab = t => {
+  const v = TAB_VIEW[t];
+  if (!v || !(view in WORK_TAB) || v === view || (v === "work" && t === "overview" && view !== "work")) return;
+  if (!allowed(v)) return;
+  view = v;
+  history.replaceState(null, "", "#" + v);
+  renderNav();
+};
+function openTaskInWork(id) { workTab.pendingTask = id; go("work"); }
 
 document.addEventListener("click", e => {
   const g = e.target.closest("[data-go]");
   if (g) { go(g.dataset.go); return; }
+  const fs = e.target.closest(".frame-sub [data-st]");
+  if (fs) { stTab = fs.dataset.st; go("settings"); return; }
   if (e.target.closest("#avBtn")) { $("#menu").hidden = !$("#menu").hidden; return; }
   if (!e.target.closest("#menu")) $("#menu").hidden = true;
   const a = e.target.closest("[data-act]");
@@ -323,18 +350,39 @@ async function renderHome(sec) {
     k.push(kpi("k-contract", "📄", r.contracts.soon, "合約 30 天內到期", "contracts", r.contracts.soon ? "amber" : ""));
     if (r.contracts.expired) k.push(kpi("k-contract", "⚠️", r.contracts.expired, "合約已到期未處理", "contracts", "red"));
   }
+  if (r.docs && !r.docs.error) k.push(kpi("k-doc", "📮", r.docs.open, `函文待處理${r.docs.overdue ? `（逾期 ${r.docs.overdue}）` : ""}`, "docs", r.docs.overdue ? "red" : r.docs.soon ? "amber" : ""));
   if (r.legal && !r.legal.error) k.push(kpi("k-legal", "⚖️", r.legal.soon + r.legal.overdue, `法務期限 30 天內${r.legal.overdue ? `（逾期 ${r.legal.overdue}）` : ""}`, "legal", r.legal.overdue ? "red" : r.legal.soon ? "amber" : ""));
 
+  if (r.docs) cards.push(`<div class="card m-doc"><h3>📮 函文<button class="go" data-go="docs">全部 →</button></h3>${r.docs.error ? `<div class="note">${esc(r.docs.error)}</div>` :
+    r.docs.list.length ? `<ul class="plain">${r.docs.list.map(x => `<li class="click" data-doc="${esc(x.id)}"><span class="t"><span class="note mono">${esc(x.no)}</span> ${esc(x.subject)}</span>${x.replyBy ? dayChip(x.days) : '<span class="chip">待處理</span>'}</li>`).join("")}</ul>` : '<div class="note">沒有待處理的函文</div>'}</div>`);
   if (r.legal) cards.push(`<div class="card m-legal"><h3>⚖️ 法務期限<button class="go" data-go="legal">全部 →</button></h3>${r.legal.error ? `<div class="note">${esc(r.legal.error)}</div>` :
     r.legal.list.length ? `<ul class="plain">${r.legal.list.map(x => `<li><span class="t">${esc(x.title)}</span>${dayChip(x.days)}</li>`).join("")}</ul>` : '<div class="note">30 天內沒有到期項目 🎉</div>'}</div>`);
   if (r.contracts) cards.push(`<div class="card m-contract"><h3>📄 合約到期${r.contracts.depts ? `<span class="chip amber">${esc(r.contracts.depts.join("、"))}</span>` : ""}<button class="go" data-go="contracts">合約庫 →</button></h3>${r.contracts.error ? `<div class="note">${esc(r.contracts.error)}</div>` :
     (r.contracts.list.length ? `<ul class="plain">${r.contracts.list.map(x => `<li><span class="t">${esc(x.counterparty)} <span class="note">${esc(x.dept || "")}</span></span>${dayChip(x.days)}</li>`).join("")}</ul>` : '<div class="note">沒有即將到期的合約</div>')
     + (r.contracts.missing && ME.perm.contracts !== "部門" ? `<div class="note" style="margin-top:10px">另有 ${r.contracts.missing} 份需追蹤的合約還沒填到期日</div>` : "")}</div>`);
-  if (r.work && !r.work.error && ME.perm.work === "正職") cards.push(`<div class="card m-work"><h3>✅ 我的待辦<button class="go" data-go="work">工作台 →</button></h3>${r.work.list.length ? `<ul class="plain">${r.work.list.map(x => `<li><span class="t">${esc(x.title)}</span>${dayChip(daysLeft(x.due, r.today))}</li>`).join("")}</ul>` : `<div class="note">${r.work.mine ? `共 ${r.work.mine} 件，都沒有設定期限` : "目前沒有待辦"}</div>`}</div>`);
+  if (r.work && !r.work.error && ME.perm.work === "正職") cards.push(`<div class="card m-work"><h3>✅ 我的待辦<button class="go" data-go="work">工作台 →</button></h3>${r.work.list.length ? `<ul class="plain">${r.work.list.map(x => `<li class="click" data-task="${esc(x.id)}"><span class="t">${esc(x.title)}</span>${dayChip(daysLeft(x.due, r.today))}</li>`).join("")}</ul>` : `<div class="note">${r.work.mine ? `共 ${r.work.mine} 件，都沒有設定期限` : "目前沒有待辦"}</div>`}</div>`);
   if (r.work && !r.work.error) cards.push(`<div class="card m-pt"><h3>🕘 今天的 PT 班表<button class="go" data-go="pt">排班 →</button></h3>${r.work.shifts.length ? `<ul class="plain">${r.work.shifts.map(s => `<li><span class="t">${esc(s.name)} <span class="note">${esc(s.type || "")}</span></span><span class="note">${esc(s.start)}–${esc(s.end)}</span></li>`).join("")}</ul>` : '<div class="note">今天沒有排班</div>'}</div>`);
   if (ME.perm.assets !== "—") cards.push(`<div class="card m-asset" id="assetCard"><h3>🖥️ 設備資產<button class="go" data-go="assets">前往 →</button></h3><div class="note">資產、借用、簽收單、維修紀錄</div></div>`);
-  $("#homeBody").innerHTML = (k.length ? `<div class="kpis">${k.join("")}</div>` : "") + `<div class="grid g3">${cards.join("")}</div>`;
+  $("#homeBody").innerHTML = (k.length ? `<div class="kpis">${k.join("")}</div>` : "") + `<div class="grid g3">${cards.join("")}</div>` + (r.team ? teamHtml(r.team, r.today) : "");
+  $("#homeBody").onclick = e => {
+    const t = e.target.closest("[data-task]"); if (t) return openTaskInWork(t.dataset.task);
+    const d = e.target.closest("[data-doc]"); if (d) { docOpen = d.dataset.doc; return go("docs"); }
+  };
   if (ME.perm.assets !== "—") homeAssets();
+}
+
+/** 首頁的成員總覽（原本工作台的「成員總覽」） */
+function teamHtml(team, td) {
+  if (!team.length) return "";
+  const maxOpen = Math.max(1, ...team.map(m => m.open));
+  const ft = team.filter(m => m.type === "正職").length;
+  return `<div class="toolbar" style="margin-top:28px"><h2 style="font-size:17px">成員總覽</h2><span class="note">正職 ${ft}・PT ${team.length - ft}</span><span class="sp"></span><button class="btn small" data-go="work">工作分配 →</button></div>
+  <div class="people">${team.map(m => `<article class="person">
+    <div class="ph"><span class="dot" style="background:${esc(m.color || "#9aa")}"></span><b>${esc(m.name)}</b><span class="chip ${m.type === "PT" ? "amber" : "teal"}">${esc(m.type)}</span>${m.overdue ? `<span class="chip red">逾期 ${m.overdue}</span>` : ""}</div>
+    <div class="note">${esc(m.role || (m.type === "PT" ? "PT" : "正職"))}・手上 ${m.open} 項・本週完成 ${m.doneWeek} 項${m.type === "PT" ? `・本週 ${m.hours} 小時／${m.shifts} 班` : ""}</div>
+    <div class="load"><i style="width:${m.open / maxOpen * 100}%"></i></div>
+    ${m.tasks.length ? `<ul class="plain">${m.tasks.map(t => `<li class="click" data-task="${esc(t.id)}"><span class="t">${esc(t.title)}${t.helper ? ' <span class="note">（協作）</span>' : ""}</span>${t.due ? `<span class="note mono" style="${t.due < td ? "color:var(--danger)" : ""}">${esc(t.due.slice(5).replace("-", "/"))}</span>` : ""}</li>`).join("")}${m.open > m.tasks.length ? `<li class="note">還有 ${m.open - m.tasks.length} 項…</li>` : ""}</ul>` : '<div class="note">目前沒有分配中的工作</div>'}
+  </article>`).join("")}</div>`;
 }
 
 async function homeAssets() {
@@ -480,6 +528,171 @@ function legalDrawer(r) {
   });
 }
 
+/* ================= 函文（收發文登記） ================= */
+let DC = null, docOpen = "", dcFilter = {q: "", dir: "", status: "open", cat: "", owner: ""};
+const ST_CHIP = {"待處理": "amber", "處理中": "blue", "已回覆": "green", "已結案": "green", "存查": ""};
+const fmtSize = n => n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB";
+const fmtAt = iso => { if (!iso) return ""; const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+async function renderDocs(sec) {
+  sec.innerHTML = `<div class="toolbar"><h2>函文</h2><span class="note" id="dcCount"></span><span class="sp"></span><button class="btn" id="dcIn" hidden>＋ 收文登記</button><button class="btn primary" id="dcOut" hidden>＋ 發文登記</button></div>
+    <div class="filters">
+      <input id="dcQ" type="search" placeholder="搜尋編號、主旨、單位、文號" value="${esc(dcFilter.q)}">
+      <select id="dcDir"><option value="">收文＋發文</option><option>收文</option><option>發文</option></select>
+      <select id="dcStatus"><option value="open">未結案</option><option value="due">有回覆期限</option><option value="all">全部狀態</option></select>
+      <select id="dcCat"><option value="">全部類別</option></select>
+      <select id="dcOwner"><option value="">全部承辦人</option><option value="me">我承辦的</option></select>
+    </div>
+    <div id="dcBody"><div class="empty"><span class="spin"></span> 載入中…</div></div>`;
+  try { DC = await PF.call("pf_apiDocs"); } catch (e) { $("#dcBody").innerHTML = `<div class="banner err">${esc(e.message)}</div>`; return; }
+  if (view !== "docs") return;
+  $("#dcIn").hidden = $("#dcOut").hidden = !DC.canEdit;
+  $("#dcStatus").innerHTML += DC.statuses.map(x => `<option>${esc(x)}</option>`).join("");
+  $("#dcCat").innerHTML += DC.cats.map(c => `<option>${esc(c)}</option>`).join("");
+  $("#dcDir").value = dcFilter.dir; $("#dcStatus").value = dcFilter.status; $("#dcCat").value = dcFilter.cat; $("#dcOwner").value = dcFilter.owner;
+  ["dcQ", "dcDir", "dcStatus", "dcCat", "dcOwner"].forEach(id => $("#" + id).addEventListener("input", () => {
+    dcFilter = {q: $("#dcQ").value, dir: $("#dcDir").value, status: $("#dcStatus").value, cat: $("#dcCat").value, owner: $("#dcOwner").value}; docTable();
+  }));
+  $("#dcIn").onclick = () => docDrawer(null, "收文");
+  $("#dcOut").onclick = () => docDrawer(null, "發文");
+  docTable();
+  if (docOpen) { const r = DC.rows.find(x => x.id === docOpen); docOpen = ""; if (r) docDrawer(r); }
+}
+const dcName = e => { if (!e) return "未指定"; const p = (DC.people || []).find(x => x.email === e); return p ? p.name : e.split("@")[0]; };
+function docTable() {
+  const t = today(), q = dcFilter.q.trim().toLowerCase();
+  const rows = DC.rows.filter(r => {
+    const closed = DC.closed.includes(r.status);
+    if (dcFilter.dir && r.dir !== dcFilter.dir) return false;
+    if (dcFilter.status === "open" && closed) return false;
+    if (dcFilter.status === "due" && (!r.replyBy || closed)) return false;
+    if (!["open", "due", "all"].includes(dcFilter.status) && r.status !== dcFilter.status) return false;
+    if (dcFilter.cat && r.category !== dcFilter.cat) return false;
+    if (dcFilter.owner === "me" && r.owner !== DC.me) return false;
+    if (q && !(r.no + " " + r.subject + " " + r.party + " " + r.refNo + " " + r.note).toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.no).localeCompare(String(a.no)));
+  $("#dcCount").textContent = `${rows.length} 筆`;
+  if (!rows.length) { $("#dcBody").innerHTML = `<div class="tablewrap"><div class="empty">${DC.rows.length ? "沒有符合條件的函文" : (DC.canEdit ? "還沒有任何函文。收到公文、存證信函、律師函時按「收文登記」，寄出時按「發文登記」，掃描檔可以直接上傳。" : "目前沒有函文")}</div></div>`; return; }
+  $("#dcBody").innerHTML = `<div class="tablewrap"><table style="min-width:980px"><thead><tr><th>編號</th><th>日期</th><th>來文／受文單位</th><th>主旨</th><th>類別</th><th>承辦</th><th>回覆期限</th><th>狀態</th></tr></thead><tbody>${rows.map(r => {
+    const closed = DC.closed.includes(r.status);
+    return `<tr class="click${closed ? " done" : ""}" data-dc="${esc(r.id)}">
+      <td class="mono" style="white-space:nowrap"><span class="chip ${r.dir === "發文" ? "violet" : "teal"}">${esc(r.dir)}</span> ${esc(r.no)}</td>
+      <td style="white-space:nowrap">${showDate(r.date)}</td>
+      <td>${esc(r.party || "—")}</td>
+      <td><b class="ttl">${esc(r.subject)}</b>${r.refNo ? `<div class="note">文號 ${esc(r.refNo)}</div>` : ""}${(r.files || []).length ? ` <span class="note">📎${r.files.length}</span>` : ""}</td>
+      <td><span class="chip">${esc(r.category || "其他")}</span></td>
+      <td style="white-space:nowrap">${esc(dcName(r.owner))}</td>
+      <td style="white-space:nowrap">${r.replyBy ? (closed ? `<span class="note">${showDate(r.replyBy)}</span>` : `${showDate(r.replyBy)} ${dayChip(daysLeft(r.replyBy, t))}`) : '<span class="note">—</span>'}</td>
+      <td><span class="chip ${ST_CHIP[r.status] || ""}">${esc(r.status)}</span></td></tr>`;
+  }).join("")}</tbody></table></div>`;
+  $("#dcBody").onclick = e => { const tr = e.target.closest("[data-dc]"); if (tr) docDrawer(DC.rows.find(x => x.id === tr.dataset.dc)); };
+}
+function docDrawer(r, dir) {
+  let isNew = !r;
+  const full = DC.canEdit, mine = r && r.owner === DC.me, touch = full || mine;
+  r = r || {dir, date: today(), party: "", refNo: "", subject: "", category: DC.cats[0], owner: DC.me, replyBy: "", remind: DC.days, status: "待處理", note: "", link: "", files: [], log: []};
+  const dis = full ? "" : "disabled";
+  const ppl = (DC.people || []).slice();
+  if (r.owner && !ppl.some(p => p.email === r.owner)) ppl.push({email: r.owner, name: r.owner});
+  const d = document.createElement("div");
+  d.className = "drawer";
+  const paint = () => {
+    const out = r.dir === "發文";
+    d.innerHTML = `<div class="panel wide" role="dialog" aria-label="函文">
+    <div class="hdr"><h2>${isNew ? (out ? "發文登記" : "收文登記") : `<span class="chip ${out ? "violet" : "teal"}">${esc(r.dir)}</span> <span class="mono">${esc(r.no)}</span>`}</h2><button class="btn small" data-x>關閉</button></div>
+    <label class="fld">主旨<input id="g_subject" value="${esc(r.subject)}" ${dis} placeholder="${out ? "例如：函覆○○局 115 年度勞動檢查改善情形" : "例如：臺北市政府勞動局 勞動檢查結果通知"}"></label>
+    <div class="row2">
+      <label class="fld">${out ? "發文日期" : "收文日期"}<input id="g_date" type="date" value="${esc(r.date)}" ${dis}></label>
+      <label class="fld">類別<select id="g_cat" ${dis}>${DC.cats.map(c => `<option${c === r.category ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
+    </div>
+    <div class="row2">
+      <label class="fld">${out ? "受文者（寄給誰）" : "來文單位（誰寄來的）"}<input id="g_party" value="${esc(r.party)}" ${dis} placeholder="${out ? "例如：○○律師事務所" : "例如：臺北市政府勞動局"}"></label>
+      <label class="fld">${out ? "我方文號（選填）" : "來文字號（選填）"}<input id="g_ref" value="${esc(r.refNo)}" ${dis} placeholder="例如：北市勞檢字第 1150000000 號"></label>
+    </div>
+    <div class="row2">
+      <label class="fld">承辦人（收提醒信）<select id="g_owner" ${dis}><option value="">未指定（寄給行政主管）</option>${ppl.map(p => `<option value="${esc(p.email)}"${p.email === r.owner ? " selected" : ""}>${esc(p.name)}｜${esc(p.email)}</option>`).join("")}</select></label>
+      <label class="fld">狀態<select id="g_status" ${touch ? "" : "disabled"}>${DC.statuses.map(x => `<option${x === r.status ? " selected" : ""}>${esc(x)}</option>`).join("")}</select></label>
+    </div>
+    <div class="row2">
+      <label class="fld">${out ? "對方回覆期限（選填）" : "我方回覆期限（選填）"}<input id="g_reply" type="date" value="${esc(r.replyBy)}" ${dis}></label>
+      <label class="fld">期限前幾天提醒（逗號隔開）<input id="g_remind" value="${esc(r.remind)}" ${dis} placeholder="7,3,1,0"></label>
+    </div>
+    <label class="fld">備註<textarea id="g_note" ${touch ? "" : "disabled"} placeholder="重點、要準備的資料、聯絡窗口…">${esc(r.note)}</textarea></label>
+    <label class="fld">相關連結（選填）<input id="g_link" type="url" value="${esc(r.link)}" ${dis} placeholder="https://"></label>
+    ${r.link ? `<a class="note" href="${esc(r.link)}" target="_blank" rel="noopener">開啟連結 ↗</a>` : ""}
+    <div><div class="note" style="margin-bottom:6px">附件（掃描檔、PDF，每個 20MB 以內）</div>
+      ${isNew ? '<div class="note">登記後就可以上傳附件。</div>' : `<ul class="plain" id="g_files">${(r.files || []).map(f => `<li><span class="t"><button class="btn link" data-fopen="${esc(f.id)}">📄 ${esc(f.name)}</button> <span class="note">${fmtSize(f.size || 0)}・${esc(dcName(f.by))} ${fmtAt(f.at)}</span></span>${touch ? `<button class="btn small danger" data-fdel="${esc(f.id)}">刪除</button>` : ""}</li>`).join("") || '<li class="note">還沒有附件</li>'}</ul>
+      ${touch ? '<label class="btn small" style="display:inline-block;margin-top:8px;cursor:pointer">📎 上傳附件<input type="file" id="g_up" multiple hidden></label> <span class="note" id="g_upmsg"></span>' : ""}`}</div>
+    ${isNew ? "" : `<div><div class="note" style="margin-bottom:6px">處理紀錄</div>
+      <ul class="timeline">${(r.log || []).map(l => `<li class="${l.sys ? "" : "past"}"><b>${esc(dcName(l.by))}</b> <span class="note">${fmtAt(l.at)}</span><div${l.sys ? ' class="note"' : ""}>${esc(l.text)}</div></li>`).join("") || '<li class="note">還沒有紀錄</li>'}</ul>
+      ${touch ? '<div style="display:flex;gap:8px;margin-top:8px"><input id="g_log" placeholder="例如：已電話聯絡承辦人，預計 11/20 前回函" style="flex:1;padding:7px 11px;border:1px solid var(--line);border-radius:10px"><button class="btn" data-addlog>新增紀錄</button></div>' : ""}</div>
+      <div class="note">登記 ${esc((r.createdAt || "").slice(0, 10))}・最後修改 ${esc((r.updatedAt || "").slice(0, 10))} ${esc(dcName(r.updatedBy))}</div>`}
+    <div class="foot">${full && !isNew ? '<button class="btn danger" data-del>刪除</button>' : ""}<span class="sp"></span>${touch ? `<button class="btn primary" data-save>${isNew ? "登記" : "儲存"}</button>` : ""}</div>
+  </div>`;
+    const up = d.querySelector("#g_up");
+    if (up) up.onchange = () => upload([...up.files]);
+  };
+  const replace = saved => { const i = DC.rows.findIndex(x => x.id === saved.id); if (i >= 0) DC.rows[i] = saved; else DC.rows.push(saved); r = saved; docTable(); };
+  const readB64 = f => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1]); fr.onerror = () => rej(new Error("讀取檔案失敗")); fr.readAsDataURL(f); });
+  async function upload(files) {
+    const msg = d.querySelector("#g_upmsg");
+    for (const f of files) {
+      if (f.size > 20 * 1048576) { toast(`${f.name} 超過 20MB`); continue; }
+      if (msg) msg.innerHTML = `<span class="spin"></span> 上傳 ${esc(f.name)}…`;
+      try { replace(await PF.call("pf_apiDocAttach", [r.id, {name: f.name, mime: f.type, b64: await readB64(f)}])); }
+      catch (e) { toast(e.message); }
+    }
+    paint();
+  }
+  paint();
+  document.body.appendChild(d);
+  d.addEventListener("click", async e => {
+    if (e.target === d || e.target.closest("[data-x]")) return d.remove();
+    const fo = e.target.closest("[data-fopen]");
+    if (fo) {
+      const w = window.open("", "_blank");
+      if (w) w.document.write('<p style="font:15px sans-serif;padding:30px;color:#555">檔案載入中…</p>');
+      try {
+        const f = await PF.call("pf_apiDocFile", [fo.dataset.fopen]);
+        const bin = atob(f.b64), u8 = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        const url = URL.createObjectURL(new Blob([u8], {type: f.mime || "application/octet-stream"}));
+        if (w) w.location.href = url; else window.open(url, "_blank");
+      } catch (err) { if (w) w.close(); toast(err.message); }
+      return;
+    }
+    const fd = e.target.closest("[data-fdel]");
+    if (fd) {
+      if (fd.dataset.sure !== "1") { fd.dataset.sure = "1"; fd.textContent = "確定刪除？"; return; }
+      fd.disabled = true;
+      try { replace(await PF.call("pf_apiDocDetach", [r.id, fd.dataset.fdel])); paint(); toast("已刪除附件"); } catch (err) { toast(err.message); fd.disabled = false; }
+      return;
+    }
+    if (e.target.closest("[data-addlog]")) {
+      const v = d.querySelector("#g_log").value.trim(); if (!v) return;
+      try { replace(await PF.call("pf_apiDocLog", [r.id, v])); paint(); } catch (err) { toast(err.message); }
+      return;
+    }
+    if (e.target.closest("[data-del]")) {
+      const b = e.target.closest("[data-del]");
+      if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "再按一次確認刪除（附件也會刪除）"; return; }
+      b.disabled = true;
+      try { await PF.call("pf_apiDocRemove", [r.id]); DC.rows = DC.rows.filter(x => x.id !== r.id); toast("已刪除"); d.remove(); docTable(); } catch (err) { toast(err.message); b.disabled = false; }
+      return;
+    }
+    if (e.target.closest("[data-save]")) {
+      const b = e.target.closest("[data-save]");
+      const v = id => d.querySelector(id).value;
+      const obj = {id: r.id, dir: r.dir, subject: v("#g_subject"), date: v("#g_date"), category: v("#g_cat"), party: v("#g_party"), refNo: v("#g_ref"), owner: v("#g_owner"), status: v("#g_status"), replyBy: v("#g_reply"), remind: v("#g_remind"), note: v("#g_note"), link: v("#g_link").trim()};
+      if (full && !obj.subject.trim()) return toast("請填寫主旨");
+      if (full && !obj.date) return toast("請填寫日期");
+      b.disabled = true; b.innerHTML = '<span class="spin"></span> 儲存中';
+      try { const saved = await PF.call("pf_apiDocSave", [obj]); replace(saved); toast(isNew ? `已登記，編號 ${saved.no}，可以上傳附件了` : "已儲存"); if (isNew) { isNew = false; paint(); } else d.remove(); }
+      catch (err) { toast(err.message); b.disabled = false; b.textContent = isNew ? "登記" : "儲存"; }
+    }
+  });
+}
+
 /* ================= 設備資產（Supabase） ================= */
 let _sb = null;
 function loadScript(src) { return new Promise((res, rej) => { const x = document.createElement("script"); x.src = src; x.onload = res; x.onerror = () => rej(new Error("無法載入 " + src)); document.head.appendChild(x); }); }
@@ -526,9 +739,14 @@ async function syncAssetRoles(rows) {
 
 /* ================= 設定 ================= */
 let ST = null, stTab = "perm";
+function settingsTabs(cur) {
+  const t = [["perm", "權限"], ["heads", "部門主管與到期通知"], ["notify", "提醒設定"]].map(([k, n]) => `<button data-st="${k}" aria-current="${cur === k}">${n}</button>`);
+  if (isFT(ME.perm)) t.push(`<button data-go="worksettings" aria-current="${cur === "work"}">工作台設定（成員、班別、週報、Slack）</button>`);
+  return `<div class="subtabs">${t.join("")}</div>`;
+}
 async function renderSettings(sec) {
   sec.innerHTML = `<div class="toolbar"><h2>設定</h2></div>
-    <div class="subtabs"><button data-st="perm">權限</button><button data-st="heads">部門主管與到期通知</button><button data-st="notify">提醒設定</button></div>
+    ${settingsTabs(stTab)}
     <div id="stBody"><div class="empty"><span class="spin"></span> 載入中…</div></div>`;
   sec.querySelector(".subtabs").onclick = e => { const b = e.target.closest("[data-st]"); if (b) { stTab = b.dataset.st; stRender(); } };
   try { ST = await PF.call("pf_apiPerms"); ST.settings = ME.settings || {}; } catch (e) { $("#stBody").innerHTML = `<div class="banner err">${esc(e.message)}</div>`; return; }
@@ -551,21 +769,22 @@ function permTab() {
     <div class="toolbar"><input id="pmQ" type="search" placeholder="搜尋姓名或 Email" style="padding:7px 11px;border:1px solid var(--line);border-radius:10px;min-width:220px"><span class="sp"></span><button class="btn" id="pmAdd">＋ 新增人員</button><button class="btn primary" id="pmSave" disabled>儲存變更</button></div>
     <datalist id="deptList">${deptList}</datalist>
     <div id="assetSync"></div>
-    <div class="tablewrap"><table class="perm" style="min-width:1040px"><thead><tr><th>人員</th><th>平台管理</th><th>工作台</th><th>合約庫</th><th>部門（合約庫選「部門」時）</th><th>法務期限</th><th>設備資產</th><th></th></tr></thead>
+    <div class="tablewrap"><table class="perm" style="min-width:1120px"><thead><tr><th>人員</th><th>平台管理</th><th>工作台</th><th>合約庫</th><th>部門（合約庫選「部門」時）</th><th>函文</th><th>法務期限</th><th>設備資產</th><th></th></tr></thead>
     <tbody id="pmRows"></tbody></table></div>
-    <div class="note" style="margin-top:10px">系統擁有者（${esc(ST.owner)}）永遠有全部權限。工作台：正職可管理全部，PT 只看排班、每日檢核和自己的工作。合約庫：管理 = 可改分類規則；編輯 = 可匯入、修改、上傳；檢視 = 只能看全部合約。</div>`;
+    <div class="note" style="margin-top:10px">系統擁有者（${esc(ST.owner)}）永遠有全部權限。函文：管理 = 可以登記、修改、刪除；檢視 = 只能看，但被指定為承辦人的那幾筆可以改狀態、加處理紀錄和附件。工作台：正職可管理全部，PT 只看排班、每日檢核和自己的工作。合約庫：管理 = 可改分類規則；編輯 = 可匯入、修改、上傳；檢視 = 只能看全部合約。</div>`;
   const rowHtml = (r, i) => `<tr data-i="${i}">
     <td><input data-k="name" value="${esc(r.name)}" placeholder="姓名" style="font-weight:600;margin-bottom:3px"><input data-k="email" value="${esc(r.email)}" placeholder="name@swag.live" ${r.email === ST.owner ? "disabled" : ""}></td>
     <td><select data-k="admin" class="v-${esc(r.admin)}">${OPT(["", "是"], r.admin)}</select></td>
     <td><select data-k="work" class="v-${esc(r.work)}">${OPT(V.work, r.work)}</select></td>
     <td><select data-k="contracts" class="v-${esc(r.contracts)}">${OPT(V.contracts, r.contracts)}</select></td>
     <td><input data-k="dept" value="${esc(r.dept)}" list="deptList" placeholder="${r.contracts === "部門" ? "必填，例如 Marketing" : ""}" ${r.contracts === "部門" ? "" : "disabled"} style="${r.contracts === "部門" && !r.dept ? "border-color:var(--danger)" : ""}"></td>
+    <td><select data-k="docs" class="v-${esc(r.docs || "—")}">${OPT(V.docs, r.docs || "—")}</select></td>
     <td><select data-k="legal" class="v-${esc(r.legal)}">${OPT(V.legal, r.legal)}</select></td>
     <td><select data-k="assets" class="v-${esc(r.assets)}">${OPT(V.assets, r.assets)}</select></td>
     <td>${r.email === ST.owner ? '<span class="note">擁有者</span>' : `<button class="btn small danger" data-rm="${i}">移除</button>`}</td></tr>`;
   const draw = () => {
     const q = ($("#pmQ").value || "").toLowerCase();
-    $("#pmRows").innerHTML = ST.rows.map((r, i) => (!q || (r.name + r.email).toLowerCase().includes(q)) ? rowHtml(r, i) : "").join("") || '<tr><td colspan="8" class="empty">沒有資料</td></tr>';
+    $("#pmRows").innerHTML = ST.rows.map((r, i) => (!q || (r.name + r.email).toLowerCase().includes(q)) ? rowHtml(r, i) : "").join("") || '<tr><td colspan="9" class="empty">沒有資料</td></tr>';
   };
   draw();
   const dirty = () => { permDirty = true; $("#pmSave").disabled = false; };
@@ -580,7 +799,7 @@ function permTab() {
     const rm = e.target.closest("[data-rm]");
     if (rm) { const gone = ST.rows.splice(+rm.dataset.rm, 1)[0]; if (gone && gone.assets !== "—") assetCleared.add(gone.email.toLowerCase()); draw(); dirty(); return; }
     const am = e.target.closest("[data-addm]");
-    if (am) { const m = ST.members.find(x => x.email === am.dataset.addm); ST.rows.push({email: m.email, name: m.name, admin: "", work: m.type === "正職" ? "正職" : "PT", contracts: "—", legal: "—", assets: "—", dept: ""}); am.remove(); draw(); dirty(); return; }
+    if (am) { const m = ST.members.find(x => x.email === am.dataset.addm); ST.rows.push({email: m.email, name: m.name, admin: "", work: m.type === "正職" ? "正職" : "PT", contracts: "—", legal: "—", assets: "—", docs: "—", dept: ""}); am.remove(); draw(); dirty(); return; }
   };
   if (C.SUPABASE_URL) assetRoles().then(cur => {
     const box = $("#assetSync"); if (!box) return;
@@ -589,12 +808,12 @@ function permTab() {
     const diff = cur.rows.filter(x => { const r = ST.rows.find(y => y.email === x.email.toLowerCase()); return !r || r.assets !== ROLE2V[x.role]; });
     const extra = ST.rows.filter(r => r.assets !== "—" && !cur.rows.some(x => x.email.toLowerCase() === r.email));
     if (!diff.length && !extra.length) { box.innerHTML = '<div class="note" style="margin:-6px 0 10px">✓ 設備資產權限和設備資產系統一致</div>'; return; }
-    diff.forEach(x => { const e = x.email.toLowerCase(); let r = ST.rows.find(y => y.email === e); if (!r) { r = {email: e, name: "", admin: "", work: "—", contracts: "—", legal: "—", assets: "—", dept: ""}; ST.rows.push(r); } r.assets = ROLE2V[x.role]; });
+    diff.forEach(x => { const e = x.email.toLowerCase(); let r = ST.rows.find(y => y.email === e); if (!r) { r = {email: e, name: "", admin: "", work: "—", contracts: "—", legal: "—", assets: "—", docs: "—", dept: ""}; ST.rows.push(r); } r.assets = ROLE2V[x.role]; });
     if (diff.length) { draw(); dirty(); }
     else if (extra.length) $("#pmSave").disabled = false;
     box.innerHTML = `<div class="banner warn">${diff.length ? `已依設備資產系統帶入 ${diff.length} 人的設備資產權限：${diff.map(x => esc(x.email.split("@")[0]) + "（" + ROLE2V[x.role] + "）").join("、")}。` : ""}${extra.length ? `有 ${extra.length} 人還沒同步到設備資產系統。` : ""}確認後按「儲存變更」，兩邊就會一致。</div>`;
   });
-  $("#pmAdd").onclick = () => { ST.rows.unshift({email: "", name: "", admin: "", work: "—", contracts: "—", legal: "—", assets: "—", dept: ""}); $("#pmQ").value = ""; draw(); dirty(); const f = $('#pmRows tr input[data-k="name"]'); if (f) f.focus(); };
+  $("#pmAdd").onclick = () => { ST.rows.unshift({email: "", name: "", admin: "", work: "—", contracts: "—", legal: "—", assets: "—", docs: "—", dept: ""}); $("#pmQ").value = ""; draw(); dirty(); const f = $('#pmRows tr input[data-k="name"]'); if (f) f.focus(); };
   $("#pmSave").onclick = async () => {
     const b = $("#pmSave");
     const rows = ST.rows.filter(r => r.email.trim());
@@ -658,6 +877,7 @@ function notifyTab() {
       <label class="fld">法務期限：預設到期前幾天提醒<input id="n_legal" value="${esc(s.legalDays)}"></label>
       <label class="fld">合約到期：部門主管在剩幾天時收到通知<input id="n_ct" value="${esc(s.ctDays)}"></label>
     </div>
+    <label class="fld">函文：回覆期限前幾天提醒承辦人<input id="n_doc" value="${esc(s.docDays || "7,3,1,0")}"></label>
     <label class="fld">逾期時一併通知（行政主管）<input id="n_esc" value="${esc(s.escalate)}" placeholder="lynn@swag.live"></label>
     <label class="fld">法務期限提醒副本（選填，多位用逗號）<input id="n_cc" value="${esc(s.ccLegal)}"></label>
     <div class="note">提醒由 Apps Script 每天 09:00 自動寄出（寄件人是系統擁有者的 Gmail，顯示名稱「SWAG 行政平台」）。</div>
@@ -665,7 +885,7 @@ function notifyTab() {
   $("#n_save").onclick = async () => {
     const b = $("#n_save"); b.disabled = true;
     try {
-      ST.settings = ME.settings = await PF.call("pf_apiSaveSettings", [{siteUrl: $("#n_site").value, legalDays: $("#n_legal").value, ctDays: $("#n_ct").value, escalate: $("#n_esc").value, ccLegal: $("#n_cc").value}]);
+      ST.settings = ME.settings = await PF.call("pf_apiSaveSettings", [{siteUrl: $("#n_site").value, legalDays: $("#n_legal").value, ctDays: $("#n_ct").value, docDays: $("#n_doc").value, escalate: $("#n_esc").value, ccLegal: $("#n_cc").value}]);
       toast("已儲存"); notifyTab();
     } catch (err) { toast(err.message); b.disabled = false; }
   };
