@@ -3,7 +3,7 @@ window.PF_CONFIG = {
   // Apps Script「部署 › 網頁應用程式」的網址（/exec 結尾）
   API_URL: 'https://script.google.com/macros/s/請貼上部署ID/exec',
   // Google Cloud「OAuth 2.0 用戶端 ID」（網頁應用程式，已授權的 JavaScript 來源填 https://swag-admin.github.io）
-  CLIENT_ID: '請貼上.apps.googleusercontent.com',
+  CLIENT_ID: '232346306074-il6ggn2dcuioh3tng0orev3b8hnoagrv.apps.googleusercontent.com',
   DOMAIN: 'swag.live'
 };
 /* 設備資產（Supabase）：和 asset-system/config.js 的值一樣 */
