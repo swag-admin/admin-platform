@@ -211,6 +211,7 @@ async function onCredential(token) {
     const r = await PF.loginWithToken(token);
     if (r.denied) { $("#loginMsg").innerHTML = `<b>${esc(r.email)}</b> 尚未開通平台權限，請聯絡行政（Eva）。`; return; }
     ME = r.me;
+    try { localStorage.setItem("pf_me", JSON.stringify(ME)); } catch (e) {}
     $("#login").hidden = true;
     // 已經在用平台、只是在背景更新 Google 登入（給設備資產用）：不要重畫畫面
     if (!loginWaiter && $("#app").dataset.ready) { $("#app").hidden = false; return; }
@@ -223,11 +224,18 @@ PF.setLoginHandler(resolve => { loginWaiter = resolve; showLogin("登入已過�
 
 async function boot() {
   if (!PF.hasSession()) return showLogin();
+  // 用上次的登入資料先開畫面，同時向後端確認（權限有變就更新選單）
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem("pf_me") || "null"); } catch (e) {}
+  if (cached && cached.email) { ME = cached; startApp(); }
   try {
-    ME = await PF.call("pf_apiMe");
-    startApp();
+    const fresh = await PF.call("pf_apiMe");
+    const changed = !ME || JSON.stringify(fresh.perm) !== JSON.stringify(ME.perm) || fresh.email !== ME.email;
+    ME = fresh;
+    try { localStorage.setItem("pf_me", JSON.stringify(fresh)); } catch (e) {}
+    if (!cached) startApp(); else if (changed) { renderNav(); route(); }
   } catch (e) {
-    if (!ME) showLogin(esc(e.message));
+    if (!cached) showLogin(esc(e.message));
   }
 }
 
@@ -327,7 +335,7 @@ document.addEventListener("click", e => {
   if (e.target.closest("#avBtn")) { $("#menu").hidden = !$("#menu").hidden; return; }
   if (!e.target.closest("#menu")) $("#menu").hidden = true;
   const a = e.target.closest("[data-act]");
-  if (a && a.dataset.act === "logout") { PF.logout(); location.hash = ""; location.reload(); }
+  if (a && a.dataset.act === "logout") { try { Object.keys(localStorage).filter(k => k === "pf_me" || k.startsWith("pf_home_")).forEach(k => localStorage.removeItem(k)); } catch (e) {} PF.logout(); location.hash = ""; location.reload(); }
 });
 
 /* ================= 首頁 ================= */
@@ -335,11 +343,34 @@ async function renderHome(sec) {
   const h = new Date().getHours();
   const hi = h < 11 ? "早安" : h < 18 ? "午安" : "晚安";
   const d = new Date();
-  sec.innerHTML = `<div class="hello"><h2>${hi}，${esc(ME.name)}</h2><span class="note">${d.getMonth() + 1} 月 ${d.getDate()} 日（${WD[d.getDay()]}）</span></div>
+  sec.innerHTML = `<div class="hello"><h2>${hi}，${esc(ME.name)}</h2><span class="note">${d.getMonth() + 1} 月 ${d.getDate()} 日（${WD[d.getDay()]}）</span><span class="note" id="homeSync" style="margin-left:auto"></span></div>
     <div id="homeBody"><div class="empty"><span class="spin"></span> 載入中…</div></div>`;
+  // 先顯示上次的首頁（存在這台電腦），背景再抓最新的
+  const key = "pf_home_" + ME.email;
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem(key) || "null"); } catch (e) {}
+  if (cached && cached.r && cached.r.today === today()) { drawHome(cached.r); $("#homeSync").innerHTML = '<span class="spin"></span> 更新中'; }
   let r;
-  try { r = await PF.call("pf_apiHome"); } catch (e) { $("#homeBody").innerHTML = `<div class="banner err">${esc(e.message)}</div>`; return; }
+  try { r = await PF.call("pf_apiHome"); }
+  catch (e) { if (!cached) $("#homeBody").innerHTML = `<div class="banner err">${esc(e.message)}</div>`; else if ($("#homeSync")) $("#homeSync").textContent = "更新失敗：" + e.message; return; }
+  try { localStorage.setItem(key, JSON.stringify({r})); } catch (e) {}
   if (view !== "home") return;
+  drawHome(r);
+  if ($("#homeSync")) $("#homeSync").textContent = "";
+  preloadWork();
+}
+/** 背景先把工作台載好，點「工作台」「PT 排班」時就不用等 */
+function preloadWork() {
+  if (frames.work || !ME || ME.perm.work === "—") return;
+  setTimeout(() => {
+    if (frames.work) return;
+    const f = document.createElement("iframe");
+    f.className = "view-frame"; f.title = "工作台"; f.src = "work.html"; f.hidden = true;
+    $("#main").appendChild(f); frames.work = f;
+  }, 800);
+}
+function drawHome(r) {
+  if (!$("#homeBody")) return;
   const k = [], cards = [];
   const kpi = (cls, ic, n, label, goTo, color) => `<button class="kpi ${cls}" data-go="${goTo}"><span class="ic">${ic}</span><b class="${color || ""}">${n}</b><span>${label}</span></button>`;
   if (r.work && !r.work.error) {
