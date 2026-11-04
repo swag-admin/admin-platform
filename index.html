@@ -557,6 +557,8 @@ async function renderDocs(sec) {
   docTable();
   if (docOpen) { const r = DC.rows.find(x => x.id === docOpen); docOpen = ""; if (r) docDrawer(r); }
 }
+const docReplies = r => DC.rows.filter(x => x.replyTo === r.id).sort((a, b) => String(a.no).localeCompare(String(b.no)));
+const rocDate = d => { if (!d) return ""; const [y, m, dd] = d.split("-").map(Number); return `${y - 1911}年${m}月${dd}日`; };
 const dcName = e => { if (!e) return "未指定"; const p = (DC.people || []).find(x => x.email === e); return p ? p.name : e.split("@")[0]; };
 function docTable() {
   const t = today(), q = dcFilter.q.trim().toLowerCase();
@@ -579,7 +581,7 @@ function docTable() {
       <td class="mono" style="white-space:nowrap"><span class="chip ${r.dir === "發文" ? "violet" : "teal"}">${esc(r.dir)}</span> ${esc(r.no)}</td>
       <td style="white-space:nowrap">${showDate(r.date)}</td>
       <td>${esc(r.party || "—")}</td>
-      <td><b class="ttl">${esc(r.subject)}</b>${r.refNo ? `<div class="note">文號 ${esc(r.refNo)}</div>` : ""}${(r.files || []).length ? ` <span class="note">📎${r.files.length}</span>` : ""}</td>
+      <td><b class="ttl">${esc(r.subject)}</b>${r.refNo ? `<div class="note">文號 ${esc(r.refNo)}</div>` : ""}${(r.files || []).length ? ` <span class="note">📎${r.files.length}</span>` : ""}${docReplies(r).map(x => ` <span class="chip violet">↩ 回文 ${esc(x.no)}</span>`).join("")}${r.replyTo ? ` <span class="chip teal">回覆 ${esc((DC.rows.find(x => x.id === r.replyTo) || {}).no || "")}</span>` : ""}</td>
       <td><span class="chip">${esc(r.category || "其他")}</span></td>
       <td style="white-space:nowrap">${esc(dcName(r.owner))}</td>
       <td style="white-space:nowrap">${r.replyBy ? (closed ? `<span class="note">${showDate(r.replyBy)}</span>` : `${showDate(r.replyBy)} ${dayChip(daysLeft(r.replyBy, t))}`) : '<span class="note">—</span>'}</td>
@@ -587,11 +589,13 @@ function docTable() {
   }).join("")}</tbody></table></div>`;
   $("#dcBody").onclick = e => { const tr = e.target.closest("[data-dc]"); if (tr) docDrawer(DC.rows.find(x => x.id === tr.dataset.dc)); };
 }
-function docDrawer(r, dir) {
+function docDrawer(r, dir, replyOf) {
   let isNew = !r;
   const full = DC.canEdit, mine = r && r.owner === DC.me, touch = full || mine;
-  r = r || {dir, date: today(), party: "", refNo: "", subject: "", category: DC.cats[0], owner: DC.me, replyBy: "", remind: DC.days, status: "待處理", note: "", link: "", files: [], log: []};
-  const dis = full ? "" : "disabled";
+  r = r || (replyOf ? {dir: "發文", replyTo: replyOf.id, date: today(), party: replyOf.party, refNo: "", subject: "函復：" + replyOf.subject, category: replyOf.category, owner: replyOf.owner || DC.me, replyBy: "", remind: DC.days, status: "已結案", note: `復 ${replyOf.party || "貴單位"}${replyOf.date ? " " + rocDate(replyOf.date) : ""}${replyOf.refNo ? " " + replyOf.refNo : ""}函`, link: "", files: [], log: []}
+    : {dir, date: today(), party: "", refNo: "", subject: "", category: DC.cats[0], owner: DC.me, replyBy: "", remind: DC.days, status: "待處理", note: "", link: "", files: [], log: []});
+  const canReply = r.dir === "收文" && (full || mine);
+  let dis = (full || (isNew && replyOf)) ? "" : "disabled";
   const ppl = (DC.people || []).slice();
   if (r.owner && !ppl.some(p => p.email === r.owner)) ppl.push({email: r.owner, name: r.owner});
   const d = document.createElement("div");
@@ -599,7 +603,9 @@ function docDrawer(r, dir) {
   const paint = () => {
     const out = r.dir === "發文";
     d.innerHTML = `<div class="panel wide" role="dialog" aria-label="函文">
-    <div class="hdr"><h2>${isNew ? (out ? "發文登記" : "收文登記") : `<span class="chip ${out ? "violet" : "teal"}">${esc(r.dir)}</span> <span class="mono">${esc(r.no)}</span>`}</h2><button class="btn small" data-x>關閉</button></div>
+    <div class="hdr"><h2>${isNew ? (replyOf ? "登記回文" : out ? "發文登記" : "收文登記") : `<span class="chip ${out ? "violet" : "teal"}">${esc(r.dir)}</span> <span class="mono">${esc(r.no)}</span>`}</h2><button class="btn small" data-x>關閉</button></div>
+    ${r.replyTo ? (() => { const o = DC.rows.find(x => x.id === r.replyTo); return o ? `<div class="banner" style="margin:0">回覆來文 <button class="btn link" data-goto="${esc(o.id)}">${esc(o.no)}</button> ${esc(o.subject)}${o.party ? `<span class="note">（${esc(o.party)}）</span>` : ""}</div>` : ""; })() : ""}
+    ${!isNew && r.dir === "收文" ? `<div class="banner ${docReplies(r).length ? "" : "warn"}" style="margin:0;display:flex;gap:10px;align-items:center;flex-wrap:wrap">${docReplies(r).length ? "回文：" + docReplies(r).map(x => `<button class="btn link" data-goto="${esc(x.id)}">${esc(x.no)}</button><span class="note">${showDate(x.date)}</span>`).join("、") : "還沒有登記回文"}<span class="sp" style="flex:1"></span>${canReply ? '<button class="btn small primary" data-reply>↩ 登記回文</button>' : ""}</div>` : ""}
     <label class="fld">主旨<input id="g_subject" value="${esc(r.subject)}" ${dis} placeholder="${out ? "例如：函覆○○局 115 年度勞動檢查改善情形" : "例如：臺北市政府勞動局 勞動檢查結果通知"}"></label>
     <div class="row2">
       <label class="fld">${out ? "發文日期" : "收文日期"}<input id="g_date" type="date" value="${esc(r.date)}" ${dis}></label>
@@ -648,6 +654,9 @@ function docDrawer(r, dir) {
   document.body.appendChild(d);
   d.addEventListener("click", async e => {
     if (e.target === d || e.target.closest("[data-x]")) return d.remove();
+    const gt = e.target.closest("[data-goto]");
+    if (gt) { const o = DC.rows.find(x => x.id === gt.dataset.goto); if (o) { d.remove(); docDrawer(o); } return; }
+    if (e.target.closest("[data-reply]")) { const o = r; d.remove(); docDrawer(null, "發文", o); return; }
     const fo = e.target.closest("[data-fopen]");
     if (fo) {
       const w = window.open("", "_blank");
@@ -683,11 +692,16 @@ function docDrawer(r, dir) {
     if (e.target.closest("[data-save]")) {
       const b = e.target.closest("[data-save]");
       const v = id => d.querySelector(id).value;
-      const obj = {id: r.id, dir: r.dir, subject: v("#g_subject"), date: v("#g_date"), category: v("#g_cat"), party: v("#g_party"), refNo: v("#g_ref"), owner: v("#g_owner"), status: v("#g_status"), replyBy: v("#g_reply"), remind: v("#g_remind"), note: v("#g_note"), link: v("#g_link").trim()};
-      if (full && !obj.subject.trim()) return toast("請填寫主旨");
-      if (full && !obj.date) return toast("請填寫日期");
+      const obj = {id: r.id, dir: r.dir, replyTo: isNew ? r.replyTo || "" : undefined, subject: v("#g_subject"), date: v("#g_date"), category: v("#g_cat"), party: v("#g_party"), refNo: v("#g_ref"), owner: v("#g_owner"), status: v("#g_status"), replyBy: v("#g_reply"), remind: v("#g_remind"), note: v("#g_note"), link: v("#g_link").trim()};
+      if (!dis && !obj.subject.trim()) return toast("請填寫主旨");
+      if (!dis && !obj.date) return toast("請填寫日期");
       b.disabled = true; b.innerHTML = '<span class="spin"></span> 儲存中';
-      try { const saved = await PF.call("pf_apiDocSave", [obj]); replace(saved); toast(isNew ? `已登記，編號 ${saved.no}，可以上傳附件了` : "已儲存"); if (isNew) { isNew = false; paint(); } else d.remove(); }
+      try {
+        const saved = await PF.call("pf_apiDocSave", [obj]); replace(saved);
+        if (isNew && saved.replyTo) { try { DC = Object.assign(DC, await PF.call("pf_apiDocs")); docTable(); } catch (_) {} }
+        toast(isNew ? (saved.replyTo ? `已登記回文 ${saved.no}，來文已改成「已回覆」，可以上傳回文檔案了` : `已登記，編號 ${saved.no}，可以上傳附件了`) : "已儲存");
+        if (isNew) { isNew = false; replyOf = null; dis = full ? "" : "disabled"; paint(); } else d.remove();
+      }
       catch (err) { toast(err.message); b.disabled = false; b.textContent = isNew ? "登記" : "儲存"; }
     }
   });
