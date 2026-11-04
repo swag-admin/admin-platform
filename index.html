@@ -536,7 +536,7 @@ const fmtAt = iso => { if (!iso) return ""; const d = new Date(iso); return `${d
 async function renderDocs(sec) {
   sec.innerHTML = `<div class="toolbar"><h2>函文</h2><span class="note" id="dcCount"></span><span class="sp"></span><button class="btn" id="dcIn" hidden>＋ 收文登記</button><button class="btn primary" id="dcOut" hidden>＋ 發文登記</button></div>
     <div class="filters">
-      <input id="dcQ" type="search" placeholder="搜尋編號、主旨、單位、文號" value="${esc(dcFilter.q)}">
+      <input id="dcQ" type="search" placeholder="搜尋編號、主旨、單位、字號" value="${esc(dcFilter.q)}">
       <select id="dcDir"><option value="">收文＋發文</option><option>收文</option><option>發文</option></select>
       <select id="dcStatus"><option value="open">未結案</option><option value="due">有回覆期限</option><option value="all">全部狀態</option></select>
       <select id="dcCat"><option value="">全部類別</option></select>
@@ -581,7 +581,7 @@ function docTable() {
       <td class="mono" style="white-space:nowrap"><span class="chip ${r.dir === "發文" ? "violet" : "teal"}">${esc(r.dir)}</span> ${esc(r.no)}</td>
       <td style="white-space:nowrap">${showDate(r.date)}</td>
       <td>${esc(r.party || "—")}</td>
-      <td><b class="ttl">${esc(r.subject)}</b>${r.refNo ? `<div class="note">文號 ${esc(r.refNo)}</div>` : ""}${(r.files || []).length ? ` <span class="note">📎${r.files.length}</span>` : ""}${docReplies(r).map(x => ` <span class="chip violet">↩ 回文 ${esc(x.no)}</span>`).join("")}${r.replyTo ? ` <span class="chip teal">回覆 ${esc((DC.rows.find(x => x.id === r.replyTo) || {}).no || "")}</span>` : ""}</td>
+      <td><b class="ttl">${esc(r.subject)}</b>${r.refNo ? `<div class="note">${r.dir === "發文" ? "發文字號" : "來文字號"} ${esc(r.refNo)}</div>` : ""}${(r.files || []).length ? ` <span class="note">📎${r.files.length}</span>` : ""}${docReplies(r).map(x => ` <span class="chip violet">↩ 回文 ${esc(x.no)}</span>`).join("")}${r.replyTo ? ` <span class="chip teal">回覆 ${esc((DC.rows.find(x => x.id === r.replyTo) || {}).no || "")}</span>` : ""}</td>
       <td><span class="chip">${esc(r.category || "其他")}</span></td>
       <td style="white-space:nowrap">${esc(dcName(r.owner))}</td>
       <td style="white-space:nowrap">${r.replyBy ? (closed ? `<span class="note">${showDate(r.replyBy)}</span>` : `${showDate(r.replyBy)} ${dayChip(daysLeft(r.replyBy, t))}`) : '<span class="note">—</span>'}</td>
@@ -609,11 +609,11 @@ function docDrawer(r, dir, replyOf) {
     <label class="fld">主旨<input id="g_subject" value="${esc(r.subject)}" ${dis} placeholder="${out ? "例如：函覆○○局 115 年度勞動檢查改善情形" : "例如：臺北市政府勞動局 勞動檢查結果通知"}"></label>
     <div class="row2">
       <label class="fld">${out ? "發文日期" : "收文日期"}<input id="g_date" type="date" value="${esc(r.date)}" ${dis}></label>
-      <label class="fld">類別<select id="g_cat" ${dis}>${DC.cats.map(c => `<option${c === r.category ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
+      <label class="fld">${out ? "發文字號" : "來文字號"}<input id="g_ref" value="${esc(r.refNo)}" ${dis} placeholder="${out ? "例如：鈔快字第 1150001 號" : "例如：北市勞檢字第 1150000000 號"}"></label>
     </div>
     <div class="row2">
       <label class="fld">${out ? "受文者（寄給誰）" : "來文單位（誰寄來的）"}<input id="g_party" value="${esc(r.party)}" ${dis} placeholder="${out ? "例如：○○律師事務所" : "例如：臺北市政府勞動局"}"></label>
-      <label class="fld">${out ? "我方文號（選填）" : "來文字號（選填）"}<input id="g_ref" value="${esc(r.refNo)}" ${dis} placeholder="例如：北市勞檢字第 1150000000 號"></label>
+      <label class="fld">類別<select id="g_cat" ${dis}>${DC.cats.map(c => `<option${c === r.category ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
     </div>
     <div class="row2">
       <label class="fld">承辦人（收提醒信）<select id="g_owner" ${dis}><option value="">未指定（寄給行政主管）</option>${ppl.map(p => `<option value="${esc(p.email)}"${p.email === r.owner ? " selected" : ""}>${esc(p.name)}｜${esc(p.email)}</option>`).join("")}</select></label>
@@ -626,8 +626,8 @@ function docDrawer(r, dir, replyOf) {
     <label class="fld">備註<textarea id="g_note" ${touch ? "" : "disabled"} placeholder="重點、要準備的資料、聯絡窗口…">${esc(r.note)}</textarea></label>
     <label class="fld">相關連結（選填）<input id="g_link" type="url" value="${esc(r.link)}" ${dis} placeholder="https://"></label>
     ${r.link ? `<a class="note" href="${esc(r.link)}" target="_blank" rel="noopener">開啟連結 ↗</a>` : ""}
-    <div><div class="note" style="margin-bottom:6px">附件（掃描檔、PDF，每個 20MB 以內）</div>
-      ${isNew ? '<div class="note">登記後就可以上傳附件。</div>' : `<ul class="plain" id="g_files">${(r.files || []).map(f => `<li><span class="t"><button class="btn link" data-fopen="${esc(f.id)}">📄 ${esc(f.name)}</button> <span class="note">${fmtSize(f.size || 0)}・${esc(dcName(f.by))} ${fmtAt(f.at)}</span></span>${touch ? `<button class="btn small danger" data-fdel="${esc(f.id)}">刪除</button>` : ""}</li>`).join("") || '<li class="note">還沒有附件</li>'}</ul>
+    <div><div class="note" style="margin-bottom:6px">附件（掃描檔、PDF，每個 20MB 以內；上傳後自動命名為「編號_日期_字號_單位_主旨」，可以再按「改檔名」修改）</div>
+      ${isNew ? '<div class="note">登記後就可以上傳附件。</div>' : `<ul class="plain" id="g_files">${(r.files || []).map(f => `<li data-fid="${esc(f.id)}"><span class="t"><button class="btn link" data-fopen="${esc(f.id)}">📄 ${esc(f.name)}</button> <span class="note">${fmtSize(f.size || 0)}・${esc(dcName(f.by))} ${fmtAt(f.at)}</span></span><span style="white-space:nowrap">${touch ? `<button class="btn small" data-fren="${esc(f.id)}">改檔名</button> <button class="btn small danger" data-fdel="${esc(f.id)}">刪除</button>` : ""}</span></li>`).join("") || '<li class="note">還沒有附件</li>'}</ul>
       ${touch ? '<label class="btn small" style="display:inline-block;margin-top:8px;cursor:pointer">📎 上傳附件<input type="file" id="g_up" multiple hidden></label> <span class="note" id="g_upmsg"></span>' : ""}`}</div>
     ${isNew ? "" : `<div><div class="note" style="margin-bottom:6px">處理紀錄</div>
       <ul class="timeline">${(r.log || []).map(l => `<li class="${l.sys ? "" : "past"}"><b>${esc(dcName(l.by))}</b> <span class="note">${fmtAt(l.at)}</span><div${l.sys ? ' class="note"' : ""}>${esc(l.text)}</div></li>`).join("") || '<li class="note">還沒有紀錄</li>'}</ul>
@@ -668,6 +668,25 @@ function docDrawer(r, dir, replyOf) {
         const url = URL.createObjectURL(new Blob([u8], {type: f.mime || "application/octet-stream"}));
         if (w) w.location.href = url; else window.open(url, "_blank");
       } catch (err) { if (w) w.close(); toast(err.message); }
+      return;
+    }
+    const fr = e.target.closest("[data-fren]");
+    if (fr) {
+      const f = (r.files || []).find(x => x.id === fr.dataset.fren), li = fr.closest("li");
+      const base = String(f.name).replace(/\.[A-Za-z0-9]{1,6}$/, ""), ext = (String(f.name).match(/\.[A-Za-z0-9]{1,6}$/) || [""])[0];
+      li.innerHTML = `<span class="t" style="display:flex;gap:6px;align-items:center"><input class="fren-in" value="${esc(base)}" style="flex:1;padding:6px 10px;border:1px solid var(--line);border-radius:8px"><span class="note">${esc(ext)}</span></span><span style="white-space:nowrap"><button class="btn small primary" data-frok="${esc(f.id)}">儲存</button> <button class="btn small" data-frno>取消</button></span>`;
+      const inp = li.querySelector(".fren-in"); inp.focus(); inp.select();
+      inp.onkeydown = ev => { if (ev.key === "Enter") li.querySelector("[data-frok]").click(); if (ev.key === "Escape") paint(); };
+      return;
+    }
+    if (e.target.closest("[data-frno]")) return paint();
+    const fk = e.target.closest("[data-frok]");
+    if (fk) {
+      const li = fk.closest("li"), f = (r.files || []).find(x => x.id === fk.dataset.frok);
+      const ext = (String(f.name).match(/\.[A-Za-z0-9]{1,6}$/) || [""])[0], v = li.querySelector(".fren-in").value.trim();
+      if (!v) return toast("請輸入檔名");
+      fk.disabled = true;
+      try { replace(await PF.call("pf_apiDocRename", [r.id, f.id, v + ext])); paint(); toast("已改檔名（Drive 上的檔名也一起改了）"); } catch (err) { toast(err.message); fk.disabled = false; }
       return;
     }
     const fd = e.target.closest("[data-fdel]");
