@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<script src="js/gas-shim.js" data-prefix="ct_" data-module="contracts"></script>
+<style>.pf-view #btnImport,.pf-view #btnRemind,.pf-view #btnExport,.pf-dept #btnSettings{display:none!important}</style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SWAG 合約庫</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap">
+<script>
+/* 載入檢查：主程式若沒執行，顯示原因 */
+window.__booted=false;
+window.addEventListener("error",function(e){var c=document.getElementById("rows");if(c)c.innerHTML='<tr><td colspan="12" class="empty">頁面程式發生錯誤：'+String(e.message||e).replace(/</g,"&lt;")+'</td></tr>';});
+setTimeout(function(){if(!window.__booted){var c=document.getElementById("rows");if(c)c.innerHTML='<tr><td colspan="12" class="empty"><b>頁面程式沒有完整載入。</b><br>請到 Apps Script 打開 Index 檔案，確認最後一行是 &lt;/html&gt;。如果不是，代表貼上時被截斷，請重新完整貼上後「部署 › 管理部署作業 › 編輯 › 新版本」。</td></tr>';}},4000);
+</script>
+<style>
+/* Layout: one working screen — header, status strip that doubles as filters, toolbar, dense ledger table, side drawer for each contract. SWAG tokens: aqua accent, grey-900 ground, 4px controls. */
+html{color-scheme:light}
+[hidden]{display:none!important}
+body{margin:0}
+img{max-width:100%}
+:root{
+  --bg:#f6f8f8; --surface:#ffffff; --raised:#eef2f2; --line:#dbe2e2; --line-strong:#c3cdcd;
+  --fg:#16191a; --fg-2:#4d5859; --fg-3:#7c8788;
+  --accent:#00a796; --accent-ink:#00756a; --accent-soft:#d6f5f1; --on-accent:#ffffff;
+  --ok:#14853b; --ok-soft:#dcf3e3; --warn:#a66200; --warn-soft:#fdeccc; --bad:#c30a0a; --bad-soft:#fde0e0; --info:#2a6f9e; --info-soft:#dcecf7; --mute-soft:#eceff0;
+  --font:"PingFang TC","Noto Sans TC",system-ui,sans-serif; --mono:"Roboto Mono",ui-monospace,monospace;
+  --r-sm:4px; --r-md:12px; --shadow:0 12px 40px rgba(0,0,0,.18);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#191919; --surface:#232323; --raised:#2e2e2e; --line:rgba(255,255,255,.12); --line-strong:rgba(255,255,255,.22);
+  --fg:#ffffff; --fg-2:#b9bdbd; --fg-3:#8a8f8f;
+  --accent:#00d2be; --accent-ink:#4ce3d4; --accent-soft:rgba(0,210,190,.16); --on-accent:#0b1715;
+  --ok:#5fdd85; --ok-soft:rgba(21,234,72,.14); --warn:#ffc04d; --warn-soft:rgba(255,183,0,.15); --bad:#ff7a7a; --bad-soft:rgba(207,4,4,.22); --info:#7fcdeb; --info-soft:rgba(96,196,232,.16); --mute-soft:rgba(255,255,255,.07);
+  --shadow:0 12px 40px rgba(0,0,0,.55); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#191919; --surface:#232323; --raised:#2e2e2e; --line:rgba(255,255,255,.12); --line-strong:rgba(255,255,255,.22);
+  --fg:#ffffff; --fg-2:#b9bdbd; --fg-3:#8a8f8f;
+  --accent:#00d2be; --accent-ink:#4ce3d4; --accent-soft:rgba(0,210,190,.16); --on-accent:#0b1715;
+  --ok:#5fdd85; --ok-soft:rgba(21,234,72,.14); --warn:#ffc04d; --warn-soft:rgba(255,183,0,.15); --bad:#ff7a7a; --bad-soft:rgba(207,4,4,.22); --info:#7fcdeb; --info-soft:rgba(96,196,232,.16); --mute-soft:rgba(255,255,255,.07);
+  --shadow:0 12px 40px rgba(0,0,0,.55); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px;line-height:1.5;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:none;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{font-size:22px;font-weight:600;margin:0;letter-spacing:.01em;text-wrap:balance}
+h2{font-size:16px;font-weight:600;margin:0}
+.mono,.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button,input,select,textarea{font:inherit;color:inherit}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--r-sm);padding:7px 12px;cursor:pointer;white-space:nowrap;transition:background .15s cubic-bezier(.2,0,0,1),transform .1s}
+.btn:hover{background:var(--raised)} .btn:active{transform:scale(.97)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+.btn.primary:hover{filter:brightness(.94)}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.brand{display:flex;flex-direction:column;gap:2px;min-width:0}
+.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:600}
+.sub{color:var(--fg-3);font-size:12px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+
+.banner{border:1px dashed var(--accent);background:var(--accent-soft);border-radius:var(--r-md);padding:12px 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.banner p{margin:0;max-width:70ch}
+
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.stat{text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:var(--r-md);padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:2px;position:relative}
+.stat:hover{border-color:var(--line-strong)}
+.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.stat .n{font-family:var(--mono);font-size:26px;font-weight:500;line-height:1.2}
+.stat .l{font-size:12px;color:var(--fg-2);display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--fg-3);flex:none}
+.dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.bad{background:var(--bad)} .dot.info{background:var(--info)} .dot.acc{background:var(--accent)}
+
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.search{flex:1 1 260px;display:flex;align-items:center;gap:8px;border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--r-sm);padding:0 10px;min-width:0}
+.search input{border:0;background:transparent;padding:8px 0;flex:1;min-width:0;outline:none}
+select.f{border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--r-sm);padding:7px 8px;max-width:220px}
+.count{color:var(--fg-3);font-size:12px;margin-left:auto}
+
+.tablebox{border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:1060px}
+th,td{padding:9px 10px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+th{font-size:12px;font-weight:500;color:var(--fg-2);background:var(--raised);position:sticky;top:0;white-space:nowrap}
+th.sort{cursor:pointer;user-select:none} th.sort:hover{color:var(--fg)}
+tbody tr{cursor:pointer} tbody tr:hover td{background:var(--raised)}
+tbody tr:last-child td{border-bottom:0}
+tbody td{white-space:nowrap}
+tbody td.note,tbody td.empty{white-space:normal}
+td.note{min-width:280px;max-width:420px}
+.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.small{font-size:12px;color:var(--fg-3)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;border-radius:999px;padding:2px 9px;white-space:nowrap;background:var(--mute-soft);color:var(--fg-2)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.info{background:var(--info-soft);color:var(--info)} .pill.acc{background:var(--accent-soft);color:var(--accent-ink)}
+.tag{display:inline-block;font-size:12px;border:1px solid var(--line-strong);border-radius:var(--r-sm);padding:1px 7px;white-space:nowrap}
+.tag.none{border-style:dashed;color:var(--fg-3)}
+.link{color:var(--accent-ink);text-decoration:none;border-bottom:1px solid transparent} .link:hover{border-bottom-color:currentColor}
+.cp{background:none;border:0;padding:0;color:var(--fg);cursor:pointer;text-align:left} .cp:hover{color:var(--accent-ink);text-decoration:underline}
+.more{display:flex;justify-content:center;padding:12px}
+.empty{padding:48px 16px;text-align:center;color:var(--fg-2)}
+
+/* overlays */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(520px,100%);background:var(--surface);z-index:21;box-shadow:var(--shadow);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-right:env(safe-area-inset-right,0px)}
+.dhead{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+.dbody{padding:16px 20px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:18px}
+.dfoot{padding:12px 20px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
+.kv{display:grid;grid-template-columns:88px 1fr;gap:6px 12px;font-size:13px}
+.kv dt{color:var(--fg-3)} .kv dd{margin:0;min-width:0;word-break:break-word}
+.note-edit{width:100%;border:1px solid var(--line-strong);background:var(--bg);border-radius:var(--r-sm);padding:6px 8px;font:inherit;font-size:13px;resize:vertical;min-height:52px}
+.note-edit[readonly]{border-color:transparent;background:transparent;padding:0;resize:none}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:480px){.grid2{grid-template-columns:1fr}}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:12px;color:var(--fg-2)}
+.field input,.field select,.field textarea{border:1px solid var(--line-strong);background:var(--bg);border-radius:var(--r-sm);padding:7px 9px;width:100%;min-width:0}
+.field textarea{resize:vertical;min-height:64px}
+.check{display:flex;align-items:center;gap:8px;font-size:13px}
+.hint{font-size:12px;color:var(--fg-3)}
+.sect-title{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3);font-weight:600;margin-bottom:8px}
+
+.modal{position:fixed;z-index:21;left:50%;top:50%;transform:translate(-50%,-50%);width:min(760px,calc(100% - 32px));max-height:calc(100% - 48px);background:var(--surface);border-radius:var(--r-md);box-shadow:var(--shadow);display:flex;flex-direction:column}
+.drop{border:1.5px dashed var(--line-strong);border-radius:var(--r-md);padding:32px 16px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center;cursor:pointer}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.maptable{width:100%;min-width:0;font-size:13px}
+.maptable td,.maptable th{padding:6px 8px}
+.maptable select{width:100%;border:1px solid var(--line-strong);background:var(--bg);border-radius:var(--r-sm);padding:5px}
+.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.sum div{border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px}
+.sum b{display:block;font-family:var(--mono);font-size:20px;font-weight:500}
+.bar{height:6px;border-radius:3px;background:var(--raised);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .2s}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:var(--r-sm);z-index:30;font-size:13px;max-width:calc(100% - 32px)}
+.files{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.files li{display:flex;align-items:center;gap:8px;min-width:0;border:1px solid var(--line);border-radius:var(--r-sm);padding:6px 8px}
+.files .fname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.files .btn{padding:3px 8px}
+.g-levels{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.g-new{margin-top:8px}
+.dest{border:1px solid var(--accent);border-radius:var(--r-sm);padding:12px;margin-top:10px;background:var(--accent-soft)}
+.att{display:flex;flex-direction:column;gap:2px;margin-top:3px}
+.att-link{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--accent-ink);text-decoration:none;max-width:260px}
+.att-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.att-link:hover span{text-decoration:underline}
+.att-link svg.i{width:13px;height:13px;flex:none}
+.modal.sop{width:min(860px,calc(100% - 32px))}
+.sop-doc{line-height:1.75;font-size:14px;max-width:72ch}
+.sop-doc h2{font-size:20px;margin:0 0 8px}
+.sop-doc h3{font-size:16px;margin:20px 0 6px;padding-top:12px;border-top:1px solid var(--line)}
+.sop-doc h4{font-size:14px;margin:14px 0 4px}
+.sop-doc p{margin:6px 0}
+.sop-doc ol,.sop-doc ul{margin:6px 0;padding-left:22px}
+.sop-doc li{margin:3px 0}
+.sop-doc li ul{margin:2px 0 4px;padding-left:20px;list-style:circle}
+.sop-doc b{color:var(--fg)}
+#sop_text{min-height:55vh;font-family:var(--mono);font-size:13px;line-height:1.6}
+.rgroup{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:var(--r-md);padding:12px}
+.rlist{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.rlist .check{align-items:flex-start}
+.rtext{width:100%;min-height:150px;border:1px solid var(--line-strong);background:var(--bg);border-radius:var(--r-sm);padding:8px;font:inherit;font-size:13px;resize:vertical}
+.rules textarea{font-family:var(--mono);font-size:12px;min-height:200px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <span class="eyebrow">SWAG Legal · Contracts</span>
+      <h1>SWAG 合約庫</h1>
+      <span class="sub" id="lastImport">尚未匯入 Commeet 報表</span>
+    </div>
+    <div class="actions">
+      <button class="btn" id="btnExport" type="button"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M10 4v16"/></svg>在試算表中開啟</button>
+      <button class="btn" id="btnHelp" type="button"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 015 0c0 1.7-2.5 2-2.5 4M12 17h.01"/></svg>操作說明</button>
+      <button class="btn" id="btnRemind" type="button"><svg class="i" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>產生催簽文字</button>
+      <button class="btn" id="btnSettings" type="button"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>分類規則</button>
+      <button class="btn primary" id="btnImport" type="button"><svg class="i" viewBox="0 0 24 24"><path d="M12 15V4m0 0L8 8m4-4l4 4M5 14v5h14v-5"/></svg>匯入 Commeet 報表</button>
+    </div>
+  </header>
+
+  <div class="banner" id="exampleBanner" hidden>
+    <p><b>目前顯示的是範例資料。</b>從 Commeet 匯出用印／合約申請報表（.xlsx），按「匯入 Commeet 報表」上傳，系統會自動去重、分類，並從備註擷取合約期間。</p>
+    <button class="btn primary" type="button" data-act="import">上傳第一份報表</button>
+  </div>
+
+  <section class="strip" id="strip" aria-label="狀態篩選"></section>
+
+  <div class="toolbar">
+    <label class="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>
+      <input id="q" type="search" placeholder="搜尋合作對象、備註、表單編號、申請人…" autocomplete="off"></label>
+    <select class="f" id="fCompany" aria-label="公司"></select>
+    <select class="f" id="fDept" aria-label="費用歸屬"></select>
+    <select class="f" id="fType" aria-label="文件類型"></select>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="tablebox">
+    <table>
+      <thead><tr>
+        <th>狀態</th>
+        <th class="sort" data-sort="applyDate">表單 / 申請日 <span data-arrow="applyDate"></span></th>
+        <th class="sort" data-sort="sealDate">用印完成 <span data-arrow="sealDate"></span></th>
+        <th>印鑑項目</th>
+        <th>公司</th>
+        <th>合作對象</th>
+        <th>內容（備註）</th>
+        <th class="sort" data-sort="amount" style="text-align:right">金額 <span data-arrow="amount"></span></th>
+        <th>類型</th>
+        <th>費用歸屬</th>
+        <th>申請人</th>
+        <th class="sort" data-sort="end">到期日 <span data-arrow="end"></span></th>
+      </tr></thead>
+      <tbody id="rows"><tr><td colspan="12" class="empty">載入合約資料中…</td></tr></tbody>
+    </table>
+    <div class="more" id="moreBox" hidden><button class="btn" id="btnMore" type="button">顯示更多</button></div>
+  </div>
+</div>
+
+<div id="overlay"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+window.__booted=true;
+/* ---------- defaults ---------- */
+const DEFAULT_TYPES = [
+  {name:"人事文件", track:false, kw:["離職","在職證明","服務證明","聘僱","聘雇","報到","勞保","勞工","退休金","資遣","薪資","員工"]},
+  {name:"保險", track:true, kw:["保險","保單","旅平險","團險","意外險"]},
+  {name:"財稅文件", track:false, kw:["發票","invoice","退稅","國稅局","稅籍","扣繳","銀行","帳戶","存款"]},
+  {name:"行銷合作", track:true, kw:["廣告","委刊","託播","贊助","代言","業配","KOL","網紅","上架","曝光","活動合作"]},
+  {name:"訂閱/採購", track:true, kw:["訂購","訂閱","年費","授權","租賃","採購","買斷","SaaS","雲端","服務費"]},
+  {name:"合約/協議", track:true, kw:["合約","契約","協議","SOW","委託","承攬","MOU","NDA","保密"]},
+  {name:"報價/估價", track:false, kw:["報價","估價","quotation"]},
+  {name:"行政/用印", track:false, kw:["門禁","申請書","變更","用印","證明"]}
+];
+const DEFAULT_SETTINGS = {types: DEFAULT_TYPES, aliases: "MKT=Marketing\n行銷=Marketing\n人資=HR\n財務=Finance", noticeDays: 30, noFileDepts: "HR, Finance"};
+
+/* Commeet header synonyms → field */
+const FIELDS = [
+  {key:"formNo", label:"表單編號", req:true, syn:["表單編號","表單號碼","單號","申請單號","表單號","form no","表單id","編號"]},
+  {key:"applyDate", label:"申請日期", syn:["申請日期","申請時間","送出時間","建立時間","建立日期","日期"]},
+  {key:"company", label:"公司", syn:["公司","公司名稱","申請公司","所屬公司","法人"]},
+  {key:"applicant", label:"申請人", syn:["申請人姓名","申請人","員工姓名","姓名","建立者"]},
+  {key:"dept", label:"費用歸屬", syn:["費用歸屬","歸屬部門","部門","成本中心","費用部門"]},
+  {key:"counterparty", label:"合作對象", syn:["合作對象","對象","交易對象","廠商","供應商","客戶","用印對象","對方"]},
+  {key:"note", label:"備註 / 內容", syn:["備註","說明","事由","用印事由","內容","描述","主旨","摘要"]},
+  {key:"approval", label:"簽核階段", syn:["簽核階段","簽核進度","簽核狀態","審核進度","審核狀態","目前關卡","表單狀態","狀態"]},
+  {key:"amount", label:"金額", syn:["項目原幣金額","金額","費用金額","申請金額","合約金額","總金額","含稅金額","amount"]},
+  {key:"currency", label:"幣別", syn:["項目原幣幣別","幣別","幣值","幣種","currency"]},
+  {key:"sealItem", label:"印鑑項目", syn:["印鑑項目","用印項目","印鑑","印章項目"]}
+];
+const SRC_KEYS = FIELDS.map(f=>f.key);
+
+const EXAMPLES = [
+  ["EA20261029-0002","2026-10-29","鈔快數位股份有限公司","Ken Lee 李健鴻","Marketing","艾拉索整合行銷有限公司","高爾夫球場帆布廣告 (印刷製作與施工) (颱風破損需重新製作掛刊) (合約用印章)"],
+  ["EA20261028-0001","2026-10-28","鈔快數位股份有限公司","Eva Chang 張云馨","Company","藝遊國際","遊戲開發委託承攬合約、《互動式影片遊戲》遊戲開發專案規格書SOW，一式兩份"],
+  ["EA20261027-0001","2026-10-27","鈔快數位股份有限公司","Angela Lee 李沂臻","HR","鼎恒數位科技 MAYO","Apollo XE雲端年訂閱費訂購單(100人)-訂購期間2026/11/1~2027/10/31(含稅)"],
+  ["EA20261016-0001","2026-10-16","鈔快數位股份有限公司","Angela Lee 李沂臻","HR","南山人壽","日本關西旅平險共3份"],
+  ["EA20261015-0005","2026-10-15","鈔快數位股份有限公司","Anderson Chung鍾承羲","R&D_Data","訊資旺雲端科技有限公司","Byteplus AI 生成模型相關費用代付 代開發票服務"],
+  ["EA20261015-0003","2026-10-15","我的預算有限公司","Kiki Chu 瞿琦","我的預算","台北愛樂廣播股份有限公司","長榮專案台北愛樂【幻光之境】、【烈聲與低語】廣告託播合約書用印"],
+  ["EA20261008-0002","2026-10-08","Cyrek Application Co., Limited","Christine Lin林雨潔","Marketing","王琦臻","與 YT 網紅 InfiCheesy 合作共一支長影音業配，影片將上架於其 YT/X/TG 頻道；預計 2026.11.06 上片 (USDT)"],
+  ["EA20261006-0004","2026-10-06","鈔快數位股份有限公司","Angela Lee 李沂臻","HR","劉啟明 Ming Liu","10/01 新人報到_聘僱合約(一式兩份)"],
+  ["EA20261005-0001","2026-10-05","鈔快數位股份有限公司","Lemon Lin 林紘睿","2026 尾牙委會","美最時旅行社股份有限公司","員旅總金額為 3,846,896 台幣，已付 1,320,000 台幣，尚待付尾款 2,526,896 台幣"]
+];
+
+/* ---------- state ---------- */
+let me=null, canWrite=false, isAdmin=false;
+let contracts=[];
+let loaded=false, isExample=false;
+let settings=structuredClone(DEFAULT_SETTINGS);
+let meta=null;
+const view={q:"",company:"",dept:"",type:"",stat:"all",sort:"applyDate",dir:"desc",limit:200};
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function toast(msg){const t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,3200);}
+
+/* ---------- pure helpers ---------- */
+function pad(n){return String(n).padStart(2,"0");}
+function ymd(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
+function todayStr(){return ymd(new Date());}
+function normDate(v){
+  if(v==null||v==="")return "";
+  if(v instanceof Date&&!isNaN(v))return ymd(v);
+  if(typeof v==="number"&&window.XLSX){const p=XLSX.SSF.parse_date_code(v);if(p)return p.y+"-"+pad(p.m)+"-"+pad(p.d);}
+  const m=String(v).match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/);
+  if(m)return m[1]+"-"+pad(m[2])+"-"+pad(m[3]);
+  return "";
+}
+function showDate(s){return s?s.replace(/-/g,"/"):"";}
+function daysUntil(s){if(!s)return null;const [y,m,d]=s.split("-").map(Number);const t=new Date();t.setHours(0,0,0,0);return Math.round((new Date(y,m-1,d)-t)/86400000);}
+function addDays(s,n){const [y,m,d]=s.split("-").map(Number);return ymd(new Date(y,m-1,d+n));}
+function clean(v){return String(v==null?"":v).replace(/\s+/g," ").trim();}
+function fnv(str){let h=0x811c9dc5;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,0x01000193);}return (h>>>0).toString(36);}
+function docId(r){const base=(r.formNo||"NOFORM").replace(/[^A-Za-z0-9_\-.~:@+]/g,"_").slice(0,80);return base+"-"+fnv([r.company,r.counterparty,r.note].map(clean).join("|"));}
+function parseAliases(txt){const m={};String(txt||"").split(/\n/).forEach(l=>{const i=l.indexOf("=");if(i>0){const a=l.slice(0,i).trim().toLowerCase(),b=l.slice(i+1).trim();if(a&&b)m[a]=b;}});return m;}
+function normDept(raw){const a=parseAliases(settings.aliases);const k=clean(raw).toLowerCase();return a[k]||clean(raw);}
+function classify(r){
+  const text=[r.note,r.counterparty].join(" ").toLowerCase();
+  for(const t of settings.types){for(const k of t.kw){if(k&&text.includes(k.toLowerCase()))return t.name;}}
+  if(/^hr$/i.test(r.dept||""))return settings.types.find(t=>t.name==="人事文件")?"人事文件":"";
+  return "";
+}
+const DATE_RE=/(20\d{2})\s*[\/.\-年]\s*(\d{1,2})\s*[\/.\-月]\s*(\d{1,2})\s*日?\s*(?:\(含\))?\s*(?:~|～|〜|-|－|—|–|至|到)\s*(20\d{2})\s*[\/.\-年]\s*(\d{1,2})\s*[\/.\-月]\s*(\d{1,2})/;
+function extractPeriod(note){const m=String(note||"").match(DATE_RE);if(!m)return null;return {start:m[1]+"-"+pad(m[2])+"-"+pad(m[3]),end:m[4]+"-"+pad(m[5])+"-"+pad(m[6])};}
+function parseSeal(a){
+  a=clean(a);if(!a)return {sealState:"",sealDate:"",sealWho:""};
+  const m=a.match(/(20\d{2})\D(\d{1,2})\D(\d{1,2})/);const bad=/作廢|駁回|退回|撤回|取消/.test(a);
+  if(m&&(bad||/完成|核准|通過/.test(a)||/^[\d\s\/\-.:年月日]+$/.test(a)))return {sealState:bad?"作廢":"完成",sealDate:m[1]+"-"+pad(m[2])+"-"+pad(m[3]),sealWho:""};
+  if(/作廢|駁回|退回|撤回|取消/.test(a))return {sealState:"作廢",sealDate:"",sealWho:""};
+  if(/^(已)?(核准|完成|通過|結案|同意)$/.test(a))return {sealState:"完成",sealDate:"",sealWho:""};
+  if(/簽核中|審核中|待簽|進行中|處理中/.test(a))return {sealState:"簽核中",sealDate:"",sealWho:""};
+  return {sealState:"簽核中",sealDate:"",sealWho:a};
+}
+function withSeal(c){return Object.assign(c,parseSeal(c.approval));}
+function noFileDept(c){const list=String(settings.noFileDepts??"HR, Finance").split(/[,，、\n]/).map(x=>x.trim().toLowerCase()).filter(Boolean);return list.includes(String(c.dept||"").trim().toLowerCase());}
+function missingFile(c){return typeTracked(c.type)&&!noFileDept(c)&&c.sealState!=="作廢"&&!["terminated","archived"].includes(c.status)&&!(c.files&&c.files.length)&&!c.fileUrl;}
+function typeTracked(name){const t=settings.types.find(x=>x.name===name);return t?!!t.track:false;}
+/* lifecycle state */
+function life(c){
+  if(c.sealState==="作廢")return {k:"void",label:"已作廢",cls:""};
+  if(c.status==="await_counterparty")return {k:"followup",label:"等對方回簽",cls:"warn"};
+  if(c.status==="hold")return {k:"followup",label:"暫緩用印",cls:"warn"};
+  if(c.status==="terminated")return {k:"terminated",label:"已終止",cls:""};
+  if(c.status==="archived")return {k:"archived",label:"已歸檔",cls:""};
+  if(c.status==="onetime")return {k:"onetime",label:"一次性",cls:""};
+  if(c.status==="renewed")return {k:"renewed",label:"已續約",cls:"info"};
+  if(!c.type)return {k:"untyped",label:"待分類",cls:"acc"};
+  if(!c.end)return typeTracked(c.type)?{k:"needdates",label:"待補期間",cls:"acc"}:{k:"notrack",label:"不需追蹤",cls:""};
+  const d=daysUntil(c.end), notice=Number(c.noticeDays??settings.noticeDays)||30;
+  if(d<0)return c.autoRenew?{k:"active",label:"自動續約",cls:"ok"}:{k:"expired",label:"已到期",cls:"bad"};
+  if(d<=notice)return {k:"soon",label:"即將到期",cls:"warn"};
+  return {k:"active",label:"生效中",cls:"ok"};
+}
+window.__contractFns={parseSeal,normDate,docId,classify,extractPeriod,life,fnv};
+
+/* ---------- rendering ---------- */
+const STATS=[
+  {k:"all",label:"全部文件",dot:""},
+  {k:"pending",label:"用印簽核中",dot:"info"},
+  {k:"followup",label:"待追蹤",dot:"warn"},
+  {k:"soon",label:"即將到期",dot:"warn"},
+  {k:"expired",label:"已到期未處理",dot:"bad"},
+  {k:"needdates",label:"待補合約期間",dot:"acc"},
+  {k:"untyped",label:"待分類",dot:"acc"},
+  {k:"nofile",label:"缺合約檔案",dot:"info"},
+  {k:"active",label:"生效中",dot:"ok"}
+];
+function filtered(){
+  const q=view.q.trim().toLowerCase();
+  return contracts.filter(c=>{
+    if(view.company&&c.company!==view.company)return false;
+    if(view.dept&&c.dept!==view.dept)return false;
+    if(view.type&&(c.type||"")!==(view.type==="__none"?"":view.type))return false;
+    if(view.stat==="nofile"){if(!missingFile(c))return false;}
+    else if(view.stat==="pending"){if(c.sealState!=="簽核中")return false;}
+    else if(view.stat!=="all"&&life(c).k!==view.stat)return false;
+    if(q){const hay=[c.formNo,c.company,c.applicant,c.dept,c.counterparty,c.note,c.sealItem,c.amount,c.type,c.owner,c.memo,(c.files||[]).map(f=>f.name).join(" ")].join(" ").toLowerCase();if(!q.split(/\s+/).every(w=>hay.includes(w)))return false;}
+    return true;
+  }).sort((a,b)=>{
+    const f=view.sort;let x=a[f]||"",y=b[f]||"";
+    if(f==="end"||f==="sealDate"){if(!x&&!y)return 0;if(!x)return 1;if(!y)return -1;}
+    if(f==="amount"){x=isPlaceholderAmount(x)?null:amountNum(x);y=isPlaceholderAmount(y)?null:amountNum(y);if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return view.dir==="asc"?x-y:y-x;}
+    const r=x<y?-1:x>y?1:(a.formNo<b.formNo?-1:1);
+    return view.dir==="asc"?r:-r;
+  });
+}
+function renderStrip(){
+  const counts={};contracts.forEach(c=>{const k=life(c).k;counts[k]=(counts[k]||0)+1;if(missingFile(c))counts.nofile=(counts.nofile||0)+1;if(c.sealState==="簽核中")counts.pending=(counts.pending||0)+1;});
+  $("#strip").innerHTML=STATS.map(s=>`<button type="button" class="stat" data-stat="${s.k}" aria-pressed="${view.stat===s.k}"><span class="n">${s.k==="all"?contracts.length:(counts[s.k]||0)}</span><span class="l">${s.dot?`<span class="dot ${s.dot}"></span>`:""}${s.label}</span></button>`).join("");
+}
+function fillSelect(sel,label,vals,cur,extra){
+  const opts=[`<option value="">${label}：全部</option>`].concat(extra||[]).concat(vals.map(v=>`<option value="${esc(v)}"${v===cur?" selected":""}>${esc(v)}</option>`));
+  sel.innerHTML=opts.join("");sel.value=cur;
+}
+function renderFilters(){
+  const uniq=k=>[...new Set(contracts.map(c=>c[k]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant"));
+  fillSelect($("#fCompany"),"公司",uniq("company"),view.company);
+  fillSelect($("#fDept"),"費用歸屬",uniq("dept"),view.dept);
+  const types=[...new Set(settings.types.map(t=>t.name).concat(uniq("type")))];
+  fillSelect($("#fType"),"類型",types,view.type,[`<option value="__none"${view.type==="__none"?" selected":""}>未分類</option>`]);
+}
+function sealDays(c){if(!c.sealDate||!c.applyDate)return null;return -daysUntil(c.applyDate)+daysUntil(c.sealDate);}
+function sealCell(c){
+  if(c.sealState==="完成")return c.sealDate?`<span class="num">${showDate(c.sealDate)}</span>`:`<span class="small">已完成（無日期）</span>`;
+  if(c.sealState==="簽核中")return `<span class="pill info">簽核中</span>${c.sealWho?`<div class="small">在 ${esc(c.sealWho)}</div>`:""}`;
+  if(c.sealState==="作廢")return `<span class="pill">作廢</span>${c.sealDate?`<div class="small num">${showDate(c.sealDate)}</div>`:""}`;
+  return `<span class="small">—</span>`;
+}
+const CLIP=`<svg class="i" viewBox="0 0 24 24"><path d="M20 11l-8.5 8.5a5 5 0 01-7-7L13 4a3.3 3.3 0 014.7 4.7L9.2 17.2a1.7 1.7 0 01-2.4-2.4L15 6.6"/></svg>`;
+function fileHref(f){return f.url||("https:\/\/drive.google.com/file/d/"+f.driveId+"/view");}
+function attLinks(c){
+  const links=(c.files||[]).map(f=>`<a class="att-link" href="${esc(fileHref(f))}" target="_blank" rel="noopener" title="${esc(f.name)}">${CLIP}<span>${esc(f.name)}</span></a>`);
+  if(c.fileUrl)links.push(`<a class="att-link" href="${esc(c.fileUrl)}" target="_blank" rel="noopener" title="${esc(c.fileUrl)}">${CLIP}<span>雲端連結</span></a>`);
+  return links.length?`<div class="att">${links.join("")}</div>`:"";
+}
+function endCell(c){
+  if(!c.end)return `<span class="small">—</span>`;
+  const d=daysUntil(c.end);let t="";
+  if(c.status!=="terminated"&&c.status!=="archived"){t=d<0?`過期 ${-d} 天`:d===0?"今天到期":`剩 ${d} 天`;}
+  return `<span class="num">${showDate(c.end)}</span>${t?`<div class="small">${t}</div>`:""}`;
+}
+function renderRows(){
+  const list=filtered();
+  $("#count").textContent=`顯示 ${Math.min(list.length,view.limit)} / ${list.length} 筆`;
+  document.querySelectorAll("[data-arrow]").forEach(el=>el.textContent=el.dataset.arrow===view.sort?(view.dir==="asc"?"↑":"↓"):"");
+  if(!loaded){return;}
+  if(!list.length){$("#rows").innerHTML=`<tr><td colspan="12" class="empty">${contracts.length?"沒有符合條件的文件，試著清除篩選或換個關鍵字。":"還沒有資料。按右上角「匯入 Commeet 報表」上傳第一份 .xlsx。"}</td></tr>`;$("#moreBox").hidden=true;return;}
+  $("#rows").innerHTML=list.slice(0,view.limit).map(c=>{
+    const L=life(c);
+    return `<tr data-id="${esc(c.id)}">
+      <td><span class="pill ${L.cls}">${L.label}</span></td>
+      <td><span class="num">${esc(c.formNo)}</span><div class="small num">${showDate(c.applyDate)}</div></td>
+      <td>${sealCell(c)}</td>
+      <td>${c.sealItem?esc(c.sealItem):`<span class="small">—</span>`}</td>
+      <td>${esc(c.company)}</td>
+      <td><button type="button" class="cp" data-cp="${esc(c.counterparty)}" title="查看此合作對象的所有文件">${esc(c.counterparty)||"—"}</button>${attLinks(c)}</td>
+      <td class="note">${esc(c.note)}</td>
+      <td class="num" style="text-align:right">${c.amount&&!isPlaceholderAmount(c.amount)?esc(showAmount(c.amount)):`<span class="small">—</span>`}</td>
+      <td>${c.type?`<span class="tag">${esc(c.type)}</span>`:`<span class="tag none">未分類</span>`}</td>
+      <td>${esc(c.dept)}</td>
+      <td class="small">${esc(c.applicant)}</td>
+      <td>${endCell(c)}</td></tr>`;
+  }).join("");
+  $("#moreBox").hidden=list.length<=view.limit;
+}
+function renderMeta(){
+  const el=$("#lastImport");
+  if(isExample){el.textContent="範例資料 · 尚未匯入 Commeet 報表";return;}
+  if(meta&&meta.at){const d=new Date(meta.at);el.textContent=`最後匯入 ${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())} · ${meta.file||""} · 新增 ${meta.added||0}、更新 ${meta.updated||0} 筆 · 共 ${contracts.length} 筆`;}
+  else el.textContent=`共 ${contracts.length} 筆`;
+}
+function render(){renderStrip();renderFilters();renderRows();renderMeta();$("#exampleBanner").hidden=!isExample;applyWriteGate();}
+function applyWriteGate(){const off=!canWrite;$("#btnImport").disabled=off;$("#btnImport").title=off?"你目前只有檢視權限":"";}
+
+/* ---------- examples ---------- */
+function exampleRows(){
+  return EXAMPLES.map(a=>{const r={formNo:a[0],applyDate:a[1],company:a[2],applicant:a[3],deptRaw:a[4],counterparty:a[5],note:a[6]};return buildNew(r,true);});
+}
+function fmtAmount(v,cur){
+  if(v==null||v==="")return "";
+  const raw=String(v).trim();const n=typeof v==="number"?v:Number(raw.replace(/[,\s]/g,""));
+  const c=clean(cur).toUpperCase();const prefix=c&&!/^(TWD|NTD|NT\$?|台幣|新台幣)$/.test(c)?c+" ":"";
+  if(!isFinite(n)||raw==="")return prefix+raw;
+  return prefix+n.toLocaleString("en-US",{maximumFractionDigits:2});
+}
+function isPlaceholderAmount(a){const n=amountNum(a);return n!=null&&(n===0||n===1)&&/^[^\d]*[01](\.0+)?$/.test(String(a).trim());}
+function showAmount(a){
+  /* 只要是「（幣別）數字」的格式就補千分位，其他文字照原樣顯示 */
+  const m=String(a).trim().match(/^([A-Za-z$]{0,4}\$?\s*)(-?[\d,]+(?:\.\d+)?)$/);
+  if(!m)return String(a);
+  const n=Number(m[2].replace(/,/g,""));
+  return isFinite(n)?m[1]+n.toLocaleString("en-US",{maximumFractionDigits:2}):String(a);
+}
+function amountNum(a){const m=String(a||"").replace(/,/g,"").match(/-?\d+(\.\d+)?/);return m?Number(m[0]):null;}
+function buildNew(r,example){
+  const dept=normDept(r.deptRaw??r.dept);
+  const base={formNo:clean(r.formNo),applyDate:normDate(r.applyDate),company:clean(r.company),applicant:clean(r.applicant),deptRaw:clean(r.deptRaw??r.dept),dept,counterparty:clean(r.counterparty),note:clean(r.note),approval:clean(r.approval),sealItem:clean(r.sealItem)};
+  const type=classify(base);const p=extractPeriod(base.note);
+  const doc=Object.assign(base,{type,typeAuto:true,start:p?p.start:"",end:p?p.end:"",datesAuto:!!p,noticeDays:null,autoRenew:false,status:"open",amount:fmtAmount(r.amount,r.currency),fileUrl:"",owner:"",memo:"",importedAt:new Date().toISOString()});
+  if(example)doc.id=docId(doc);
+  return withSeal(doc);
+}
+
+/* ---------- events ---------- */
+$("#strip").addEventListener("click",e=>{const b=e.target.closest("[data-stat]");if(!b)return;view.stat=view.stat===b.dataset.stat&&b.dataset.stat!=="all"?"all":b.dataset.stat;view.limit=200;render();});
+let qT;$("#q").addEventListener("input",e=>{clearTimeout(qT);qT=setTimeout(()=>{view.q=e.target.value;view.limit=200;renderRows();},120);});
+$("#fCompany").addEventListener("change",e=>{view.company=e.target.value;renderRows();});
+$("#fDept").addEventListener("change",e=>{view.dept=e.target.value;renderRows();});
+$("#fType").addEventListener("change",e=>{view.type=e.target.value;renderRows();});
+document.querySelectorAll("th.sort").forEach(th=>th.addEventListener("click",()=>{const f=th.dataset.sort;if(view.sort===f)view.dir=view.dir==="asc"?"desc":"asc";else{view.sort=f;view.dir=f==="end"?"asc":"desc";}renderRows();}));
+$("#btnMore").addEventListener("click",()=>{view.limit+=300;renderRows();});
+$("#rows").addEventListener("click",e=>{
+  if(e.target.closest(".att-link"))return;
+  const cp=e.target.closest("[data-cp]");
+  if(cp){e.stopPropagation();view.q=cp.dataset.cp;$("#q").value=view.q;view.stat="all";render();return;}
+  const tr=e.target.closest("tr[data-id]");if(tr)openDrawer(tr.dataset.id);
+});
+$("#btnImport").addEventListener("click",openImport);
+document.addEventListener("click",e=>{if(e.target.closest("[data-act=import]"))openImport();});
+$("#btnSettings").addEventListener("click",openSettings);
+$("#btnRemind").addEventListener("click",openRemind);
+$("#btnHelp").addEventListener("click",openHelp);
+$("#btnExport").addEventListener("click",exportCsv);
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeOverlay();});
+
+/* ---------- overlays ---------- */
+function closeOverlay(){if(importBusy)return;$("#overlay").innerHTML="";}
+function overlay(html){$("#overlay").innerHTML=`<div class="scrim" data-close></div>`+html;$("#overlay").querySelectorAll("[data-close]").forEach(el=>el.addEventListener("click",closeOverlay));}
+
+/* drawer */
+const STATUS_OPTS=[["open","進行中（依日期自動判斷）"],["await_counterparty","待追蹤：等對方用印回簽"],["hold","待追蹤：暫不申請用印"],["onetime","一次性（不需追蹤到期）"],["renewed","已續約"],["terminated","已終止"],["archived","已歸檔"]];
+async function openDrawer(id){
+  const c=contracts.find(x=>x.id===id);if(!c)return;
+  const ro=isExample||!canWrite;
+  const types=[...new Set(settings.types.map(t=>t.name).concat(c.type?[c.type]:[]))];
+  const L=life(c);
+  overlay(`<aside class="drawer" role="dialog" aria-modal="true" aria-label="合約詳情">
+    <div class="dhead"><div style="min-width:0;display:flex;flex-direction:column;gap:4px">
+      <span class="pill ${L.cls}" style="align-self:flex-start">${L.label}</span>
+      <h2>${esc(c.counterparty||"（未填合作對象）")}</h2>
+      <span class="small num">${esc(c.formNo)} · ${showDate(c.applyDate)}</span></div>
+      <button class="btn ghost" type="button" data-close aria-label="關閉"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="dbody">
+      <section><div class="sect-title">Commeet 申請內容</div>
+        <dl class="kv"><dt>公司</dt><dd>${esc(c.company)}</dd><dt>申請人</dt><dd>${esc(c.applicant)}</dd>
+        <dt>費用歸屬</dt><dd>${esc(c.dept)}${c.deptRaw&&c.deptRaw!==c.dept?` <span class="small">（原：${esc(c.deptRaw)}）</span>`:""}</dd>
+        <dt>印鑑項目</dt><dd>${esc(c.sealItem||"—")}</dd>
+        <dt>用印完成</dt><dd>${c.sealState==="完成"?(c.sealDate?`<span class="num">${showDate(c.sealDate)}</span>`:"已完成（報表未提供日期）"):c.sealState==="作廢"?`已作廢${c.sealDate?` <span class="num">${showDate(c.sealDate)}</span>`:""}`:c.sealState==="簽核中"?`簽核中，目前在 ${esc(c.sealWho)}`:`<span class="small">Commeet 報表未提供</span>`}</dd>
+        <dt>備註</dt><dd><textarea id="d_note" class="note-edit" rows="2"${ro?" readonly":""}>${esc(c.note)}</textarea><span class="hint">可修改，重新匯入 Commeet 報表不會覆蓋</span></dd></dl></section>
+      <section><div class="sect-title">合約管理</div>
+        <div class="grid2">
+          <div class="field"><label for="d_type">文件類型</label><select id="d_type"><option value="">未分類</option>${types.map(t=>`<option${t===c.type?" selected":""}>${esc(t)}</option>`).join("")}</select></div>
+          <div class="field"><label for="d_status">處理狀態</label><select id="d_status">${STATUS_OPTS.map(([v,l])=>`<option value="${v}"${(c.status||"open")===v?" selected":""}>${l}</option>`).join("")}</select></div>
+          <div class="field"><label for="d_start">開始日</label><input id="d_start" type="date" value="${esc(c.start)}"></div>
+          <div class="field"><label for="d_end">到期日</label><input id="d_end" type="date" value="${esc(c.end)}"></div>
+          <div class="field"><label for="d_notice">提前提醒（天）</label><input id="d_notice" type="number" min="0" max="365" placeholder="${settings.noticeDays}" value="${c.noticeDays??""}"></div>
+          <div class="field"><label>提醒日</label><div class="num" id="d_remind" style="padding:7px 0">${c.end?showDate(addDays(c.end,-(Number(c.noticeDays??settings.noticeDays)||30))):"—"}</div></div>
+          <div class="field"><label for="d_owner">負責人</label><input id="d_owner" type="text" value="${esc(c.owner)}" placeholder="例：Angela Lee"></div>
+          <div class="field"><label for="d_amount">金額</label><input id="d_amount" type="text" value="${esc(c.amount)}" placeholder="例：NT$ 120,000 / 年"></div>
+        </div>
+        <label class="check" style="margin-top:10px"><input id="d_auto" type="checkbox"${c.autoRenew?" checked":""}> 到期自動續約</label>
+        ${c.datesAuto?`<p class="hint">期間是從備註自動擷取的，請確認是否正確。</p>`:""}
+        <div class="field" style="margin-top:10px"><label for="d_memo">內部備註</label><textarea id="d_memo" placeholder="續約條件、終止通知方式、對方窗口…">${esc(c.memo)}</textarea></div>
+      </section>
+      <section><div class="sect-title">合約檔案</div>
+        <ul class="files" id="d_files"></ul>
+        ${isExample?`<p class="hint">匯入真實資料後即可上傳檔案。</p>`:canDrive()?`<label class="btn" for="d_up" style="align-self:flex-start;margin-top:8px"><svg class="i" viewBox="0 0 24 24"><path d="M12 15V4m0 0L8 8m4-4l4 4M5 14v5h14v-5"/></svg>上傳到 Google Drive</label>
+          <input id="d_up" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.doc,.xlsx,.xls,.pptx,.zip" hidden>
+          <p class="hint">會依公司、部門自動選好「1.合約/報價單 › 1.公司（歸檔使用）」下的資料夾，確認後上傳。單檔 30MB 以內。</p>
+          <div id="d_dest" class="dest" hidden></div>`:`<p class="hint">你目前只有檢視權限。</p>`}
+        <div class="field" style="margin-top:10px"><label for="d_file">或貼上雲端連結（Google Drive 等）</label><input id="d_file" type="url" value="${esc(c.fileUrl)}" placeholder="https:\/\/drive.google.com/…"></div>
+        ${c.fileUrl?`<a class="link small" href="${esc(c.fileUrl)}" target="_blank" rel="noopener">開啟連結 ↗</a>`:""}
+      </section>
+      <section class="small" id="d_audit"></section>
+    </div>
+    <div class="dfoot">${ro?`<span class="small" style="margin-right:auto">${isExample?"範例資料無法編輯":"你目前只有檢視權限"}</span>`:`<button class="btn ghost danger" type="button" id="d_del" style="margin-right:auto" title="申請已取消、不需要保留時使用">刪除這筆</button>`}
+      <button class="btn" type="button" data-close>取消</button>
+      <button class="btn primary" type="button" id="d_save"${ro?" disabled":""}>儲存</button></div>
+  </aside>`);
+  const upd=()=>{const e=$("#d_end").value,n=Number($("#d_notice").value||settings.noticeDays)||30;$("#d_remind").textContent=e?showDate(addDays(e,-n)):"—";};
+  $("#d_end").addEventListener("input",upd);$("#d_notice").addEventListener("input",upd);
+  $("#d_save").addEventListener("click",()=>saveDrawer(c));
+  const del=$("#d_del");if(del)del.addEventListener("click",async()=>{
+    if(del.dataset.armed!=="1"){del.dataset.armed="1";del.textContent="確定刪除？再按一次";setTimeout(()=>{if(del.isConnected){del.dataset.armed="";del.textContent="刪除這筆";}},5000);return;}
+    del.disabled=true;del.textContent="刪除中…";
+    try{await run("apiSaveContract",c.id,{status:"deleted"});c.status="deleted";contracts=contracts.filter(x=>x.id!==c.id);closeOverlay();render();toast(`已刪除 ${c.formNo}。重新匯入 Commeet 報表也不會再加回來。`);}
+    catch(e){del.disabled=false;del.textContent="刪除這筆";toast(errMsg(e));}
+  });
+  renderFiles(c.id);
+  const up=$("#d_up");if(up)up.addEventListener("change",()=>{const f=up.files[0];up.value="";if(f)startDriveUpload(c,f);});
+  $("#d_files").addEventListener("click",e=>{const b=e.target.closest("[data-rm]");if(b)removeFile(c.id,b.dataset.rm,b);});
+  if(c.updatedAt){const d=new Date(c.updatedAt);const el=$("#d_audit");if(el&&!isNaN(d))el.textContent=`最後修改：${c.updatedBy||"團隊成員"} · ${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+}
+/* attachments → Google Drive (Apps Script) */
+const DRIVE_ROOT_DEFAULT="1p4fEpqbaxpDSTbFjrLshPhJ3xhzu0-uA";
+const fileCache={};const folderCache={};
+function canDrive(){return canWrite;}
+function driveRoot(){return settings.driveRoot||DRIVE_ROOT_DEFAULT;}
+function filesOf(id){return fileCache[id]||((contracts.find(x=>x.id===id)||{}).files)||[];}
+function fmtSize(n){return n>=1048576?(n/1048576).toFixed(1)+" MB":Math.max(1,Math.round(n/1024))+" KB";}
+function setLocal(id,patch){const c=contracts.find(x=>x.id===id);if(c){Object.assign(c,patch);withSeal(c);}}
+function renderFiles(id){
+  const ul=$("#d_files");if(!ul)return;const fs=filesOf(id);
+  ul.innerHTML=fs.length?fs.map(f=>`<li><svg class="i" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></svg>
+    <span class="fname"><a class="link" href="${esc(f.url||("https:\/\/drive.google.com/file/d/"+f.driveId+"/view"))}" target="_blank" rel="noopener">${esc(f.name)}</a>${f.path?`<span class="small" style="display:block">${esc(f.path)}</span>`:""}</span>
+    ${f.size?`<span class="small num">${fmtSize(f.size)}</span>`:""}
+    ${canWrite?`<button class="btn ghost small" type="button" data-rm="${esc(f.driveId||f.id)}">移除</button>`:""}</li>`).join("")
+    :`<li class="small" style="color:var(--fg-3)">尚未附上檔案</li>`;
+}
+async function listFolders(parentId){
+  if(folderCache[parentId])return folderCache[parentId];
+  return folderCache[parentId]=await run("apiListFolders",parentId);
+}
+const coreName=s=>String(s||"").replace(/^\s*\d+\s*[.、．]\s*/,"").replace(/[（(].*?[）)]/g,"").replace(/股份有限公司|有限公司|co\.,?|ltd\.?|limited|pte\.?|inc\.?|llc|sdn\.?\s*bhd/gi,"").replace(/\s+/g," ").trim().toLowerCase();
+const altNames=s=>{const m=String(s||"").match(/[（(](.*?)[）)]/);return [coreName(s)].concat(m?[coreName(m[1])]:[]).filter(Boolean);};
+function matchCompany(folders,company){
+  const map=settings.companyMap||{};if(map[company]&&folders.some(f=>f.id===map[company]))return map[company];
+  const cc=coreName(company);if(!cc)return "";
+  const hit=folders.find(f=>altNames(f.title).some(n=>cc.includes(n)||n.includes(cc)));
+  return hit?hit.id:"";
+}
+function matchDept(folders,dept){
+  const d=String(dept||"").trim().toLowerCase();if(!d)return "";
+  const hit=folders.find(f=>f.title.toLowerCase()===d)||folders.find(f=>{const t=f.title.toLowerCase();return d.startsWith(t)||t.startsWith(d);});
+  return hit?hit.id:"";
+}
+function defaultName(c,file){
+  const ext=(file.name.split(".").pop()||"pdf").toLowerCase();
+  const ym=(c.applyDate||todayStr()).slice(0,7);
+  const safe=s=>String(s||"").replace(/[\\/:*?"<>|]/g,"").trim();
+  let note=safe(c.note).replace(/\s+/g," ");
+  if(note.length>40)note=note.slice(0,40).trim()+"…";
+  const stamped=c.sealState==="完成"&&c.sealDate?c.sealDate.replace(/-/g,"")+" Stamped":"";
+  return [ym,safe(c.counterparty)||"未填對象",note,safe(c.formNo),stamped].filter(Boolean).join("_")+"."+ext;
+}
+async function startDriveUpload(c,file){
+  const box=$("#d_dest");if(!box)return;
+  if(file.size>30*1024*1024){toast(`「${file.name}」超過 30MB，請壓縮後再上傳`);return;}
+  box.hidden=false;box.innerHTML=`<span class="small">讀取 Google Drive 資料夾…</span>`;
+  let companies;
+  try{companies=await listFolders(driveRoot());}catch(e){box.innerHTML=`<span class="small" style="color:var(--bad)">${esc(errMsg(e))}</span>`;return;}
+  box.innerHTML=`<div class="sect-title">存到 Google Drive</div>
+    <div id="g_levels" class="g-levels"></div>
+    <div class="g-new" id="g_newrow">
+      <button class="btn ghost" type="button" id="g_new_btn">＋ 在目前位置新增資料夾</button>
+    </div>
+    <div class="small" id="g_path" style="margin-top:6px"></div>
+    <div class="field" style="margin-top:10px"><label for="g_name">檔名</label><input id="g_name" type="text" value="${esc(defaultName(c,file))}"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap;align-items:center"><span class="small" id="g_st" style="margin-right:auto"></span>
+      <button class="btn" type="button" id="g_cancel">取消</button><button class="btn primary" type="button" id="g_go">上傳</button></div>`;
+  /* levels[i] = {parentId, folders, selected}；第 0 層是公司 */
+  const levels=[];
+  const labelOf=i=>i===0?"公司資料夾":i===1?"部門／分類資料夾":`第 ${i+1} 層資料夾`;
+  const current=()=>{for(let i=levels.length-1;i>=0;i--){if(levels[i].selected)return {id:levels[i].selected,depth:i};}return null;};
+  const pathText=()=>levels.filter(l=>l.selected).map(l=>(l.folders.find(f=>f.id===l.selected)||{}).title).filter(Boolean).join(" / ");
+  function draw(){
+    $("#g_levels").innerHTML=levels.map((l,i)=>`<div class="field"><label for="g_lv${i}">${labelOf(i)}</label>
+      <select id="g_lv${i}" data-lv="${i}"><option value="">${i===0?"請選擇":"（放在上一層）"}</option>${l.folders.map(f=>`<option value="${esc(f.id)}"${f.id===l.selected?" selected":""}>${esc(f.title)}</option>`).join("")}</select></div>`).join("");
+    $("#g_levels").querySelectorAll("select[data-lv]").forEach(sel=>sel.addEventListener("change",()=>choose(Number(sel.dataset.lv),sel.value)));
+    const p=pathText();$("#g_path").textContent=p?`儲存位置：${p}`:"請選擇公司資料夾";
+    $("#g_new_btn").disabled=!current();
+  }
+  async function choose(i,id,auto){
+    levels.length=i+1;levels[i].selected=id;draw();
+    if(!id)return;
+    try{const kids=await listFolders(id);
+      if(kids.length){let pick="";if(auto&&i===0)pick=matchDept(kids,c.dept);levels.push({parentId:id,folders:kids,selected:pick});draw();if(pick)await choose(i+1,pick,false);}
+    }catch(e){toast(errMsg(e));}
+  }
+  levels.push({parentId:driveRoot(),folders:companies,selected:""});draw();
+  const cid=matchCompany(companies,c.company);if(cid)await choose(0,cid,true);
+  /* 新增資料夾 */
+  const NEWBTN=`<button class="btn ghost" type="button" id="g_new_btn">＋ 在目前位置新增資料夾</button>`;
+  function restore(){$("#g_newrow").innerHTML=NEWBTN;$("#g_new_btn").addEventListener("click",openNew);$("#g_new_btn").disabled=!current();}
+  function openNew(){
+    const cur=current();if(!cur)return;
+    $("#g_newrow").innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input id="g_new_name" type="text" placeholder="新資料夾名稱，例如 2027 羊年" style="flex:1;min-width:0;border:1px solid var(--line-strong);background:var(--bg);border-radius:var(--r-sm);padding:7px 9px">
+      <button class="btn" type="button" id="g_new_cancel">取消</button><button class="btn primary" type="button" id="g_new_ok">建立</button></div>
+      <div class="small" style="margin-top:4px">會建立在「${esc(pathText())}」底下</div>`;
+    $("#g_new_name").focus();
+    $("#g_new_cancel").addEventListener("click",restore);
+    $("#g_new_ok").addEventListener("click",async e=>{
+      const name=$("#g_new_name").value.trim();if(!name){toast("請輸入資料夾名稱");return;}
+      const b=e.currentTarget;b.disabled=true;b.textContent="建立中…";
+      try{const f=await run("apiCreateFolder",cur.id,name);
+        delete folderCache[cur.id];
+        const kids=await listFolders(cur.id);levels.length=cur.depth+1;levels.push({parentId:cur.id,folders:kids,selected:f.id});restore();draw();
+        toast(f.existed?`資料夾「${f.title}」已存在，已幫你選好`:`已建立資料夾「${f.title}」`);
+      }catch(err){b.disabled=false;b.textContent="建立";toast(errMsg(err));}
+    });
+  }
+  $("#g_new_btn").addEventListener("click",openNew);
+  $("#g_cancel").addEventListener("click",()=>{box.hidden=true;box.innerHTML="";});
+  $("#g_go").addEventListener("click",async()=>{
+    const cur=current();if(!cur){toast("請選擇公司資料夾");return;}
+    const name=$("#g_name").value.trim()||file.name;const go=$("#g_go"),st=$("#g_st");go.disabled=true;
+    const path=pathText();
+    try{
+      st.textContent="上傳中…";
+      const ext=(file.name.split(".").pop()||"").toLowerCase();
+      const b64=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(",")[1]);fr.onerror=rej;fr.readAsDataURL(file);});
+      const files=await run("apiUpload",c.id,{name,mime:file.type||(ext==="pdf"?"application/pdf":"application/octet-stream"),base64:b64,parentId:cur.id,path});
+      fileCache[c.id]=files;setLocal(c.id,{files});renderFiles(c.id);renderRows();
+      const co=levels[0].selected;
+      if(co&&!(settings.companyMap||{})[c.company]){settings.companyMap=Object.assign({},settings.companyMap,{[c.company]:co});run("apiRememberCompany",c.company,co).catch(()=>{});}
+      toast(`已存到 Google Drive：${path}`);box.hidden=true;box.innerHTML="";
+    }catch(e){go.disabled=false;st.textContent="";toast(errMsg(e));}
+  });
+}
+async function removeFile(id,fid,btn){
+  if(btn.dataset.armed!=="1"){btn.dataset.armed="1";btn.textContent="確認移除";btn.classList.add("danger");setTimeout(()=>{if(btn.isConnected){btn.dataset.armed="";btn.textContent="移除";btn.classList.remove("danger");}},4000);return;}
+  btn.disabled=true;
+  try{const files=await run("apiRemoveFile",id,fid);fileCache[id]=files;setLocal(id,{files});renderFiles(id);renderRows();toast("已從合約庫移除，Google Drive 上的檔案仍保留");}catch(e){toast(errMsg(e));btn.disabled=false;}
+}
+async function saveDrawer(c){
+  const btn=$("#d_save");btn.disabled=true;btn.textContent="儲存中…";
+  const type=$("#d_type").value;const start=$("#d_start").value,end=$("#d_end").value;
+  const nRaw=$("#d_notice").value;
+  const patch={type,typeAuto:type===c.type?!!c.typeAuto:false,status:$("#d_status").value,start,end,
+    datesAuto:(start===c.start&&end===c.end)?!!c.datesAuto:false,
+    noticeDays:nRaw===""?null:Math.max(0,Number(nRaw)||0),autoRenew:$("#d_auto").checked,
+    note:$("#d_note").value.trim(),owner:$("#d_owner").value.trim(),amount:$("#d_amount").value.trim(),fileUrl:$("#d_file").value.trim(),memo:$("#d_memo").value.trim()};
+  try{const saved=await run("apiSaveContract",c.id,patch);setLocal(c.id,saved);closeOverlay();render();toast("已儲存");}
+  catch(err){btn.disabled=false;btn.textContent="儲存";toast(errMsg(err));}
+}
+
+/* ---------- import ---------- */
+let importBusy=false, parsed=null;
+function openImport(){
+  if(!canWrite){toast("你目前只有檢視權限，無法匯入");return;}
+  parsed=null;
+  overlay(`<div class="modal" role="dialog" aria-modal="true" aria-label="匯入 Commeet 報表">
+    <div class="dhead"><div><h2>匯入 Commeet 報表</h2><span class="small">支援 .xlsx / .xls / .csv。同一筆申請（表單編號＋公司＋合作對象＋備註相同）重複匯入不會產生重複資料。</span></div>
+      <button class="btn ghost" type="button" data-close aria-label="關閉"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="dbody" id="impBody">
+      <label class="drop" id="drop" for="impFile"><svg class="i" viewBox="0 0 24 24" style="width:28px;height:28px"><path d="M12 15V4m0 0L8 8m4-4l4 4M5 14v5h14v-5"/></svg>
+        <b>拖曳檔案到這裡，或點擊選擇檔案</b><span class="small">從 Commeet 匯出的用印／合約申請報表</span></label>
+      <input id="impFile" type="file" accept=".xlsx,.xls,.csv" hidden>
+    </div>
+    <div class="dfoot" id="impFoot"><button class="btn" type="button" data-close>取消</button></div></div>`);
+  const drop=$("#drop"),inp=$("#impFile");
+  inp.addEventListener("change",()=>inp.files[0]&&readFile(inp.files[0]));
+  ["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over");}));
+  ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over");}));
+  drop.addEventListener("drop",e=>{const f=e.dataTransfer.files[0];if(f)readFile(f);});
+}
+function scoreHeader(row){let s=0;const cells=row.map(v=>clean(v).toLowerCase());FIELDS.forEach(f=>{if(cells.some(c=>f.syn.some(x=>c===x.toLowerCase())))s+=2;else if(cells.some(c=>c&&f.syn.some(x=>c.includes(x.toLowerCase()))))s+=1;});return s;}
+function guessMap(headers){
+  /* 依同義詞的先後順序找欄位（例如「簽核階段」優先於「表單狀態」），不是依 Excel 欄位的左右順序 */
+  const map={},used=new Set(),hs=headers.map(h=>clean(h).toLowerCase());
+  const find=(f,exact)=>{for(const x of f.syn){const k=x.toLowerCase();const i=hs.findIndex((h,j)=>!used.has(j)&&h&&(exact?h===k:h.includes(k)));if(i>=0)return i;}return -1;};
+  FIELDS.forEach(f=>{let idx=find(f,true);if(idx<0)idx=find(f,false);
+    if(idx>=0){map[f.key]=idx;used.add(idx);}else map[f.key]=-1;});
+  return map;
+}
+async function readFile(file){
+  if(!window.XLSX){$("#impBody").innerHTML=`<p class="small">載入試算表解析元件…</p>`;
+    try{await new Promise((res,rej)=>{const sc=document.createElement("script");sc.src="https:\/\/cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";sc.onload=res;sc.onerror=rej;document.head.appendChild(sc);});}
+    catch(_){toast("無法載入試算表解析元件，請檢查網路後再試");openImport();return;}}
+  $("#impBody").innerHTML=`<p class="small">讀取 ${esc(file.name)} 中…</p>`;
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:"array",cellDates:true});
+    let best=null;
+    wb.SheetNames.forEach(n=>{const rows=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:""});
+      for(let i=0;i<Math.min(15,rows.length);i++){const s=scoreHeader(rows[i]);if(!best||s>best.score)best={score:s,sheet:n,hi:i,rows};}});
+    if(!best||best.score<3)throw new Error("找不到標題列（例如「表單編號」「合作對象」「備註」）。請確認是 Commeet 匯出的原始報表。");
+    const headers=best.rows[best.hi].map(clean);
+    const data=best.rows.slice(best.hi+1).filter(r=>r.some(v=>clean(v)!==""));
+    parsed={file:file.name,sheet:best.sheet,headers,data,map:guessMap(headers)};
+    renderMapping();
+  }catch(err){$("#impBody").innerHTML=`<p style="color:var(--bad)">${esc(err.message||"無法讀取這個檔案")}</p><button class="btn" type="button" id="retry">換一個檔案</button>`;$("#retry").addEventListener("click",openImport);}
+}
+function planImport(){
+  const m=parsed.map,byId=new Map(allRows.map(c=>[c.id,c])),seen=new Set();
+  const plan={add:[],upd:[],same:0,dupInFile:0,skipped:0,newlyDone:[]};
+  parsed.data.forEach(row=>{
+    const r={};SRC_KEYS.forEach(k=>{r[k]=m[k]>=0?row[m[k]]:"";});
+    if(!clean(r.formNo)&&!clean(r.note)){plan.skipped++;return;}
+    const n=buildNew({...r,deptRaw:r.dept});const id=docId(n);
+    if(seen.has(id)){plan.dupInFile++;return;}seen.add(id);
+    const ex=byId.get(id);
+    if(!ex){plan.add.push({id,doc:n});return;}
+    const ch={};["applyDate","applicant","deptRaw","dept","approval","sealItem"].forEach(k=>{if((n[k]||"")!==(ex[k]||""))ch[k]=n[k];});
+    if(ch.approval!=null&&((n.sealState==="完成"&&!n.sealDate&&ex.sealState==="完成"&&ex.sealDate)||(!n.approval&&ex.approval)))delete ch.approval;
+    if(n.amount&&n.amount!==(ex.amount||""))ch.amount=n.amount;
+    if(ch.approval&&n.sealState==="完成"&&ex.sealState!=="完成")plan.newlyDone.push(id);
+    if(Object.keys(ch).length)plan.upd.push({id,patch:ch});else plan.same++;
+  });
+  return plan;
+}
+function renderMapping(){
+  const p=planImport();
+  const opt=sel=>`<option value="-1">（不匯入）</option>`+parsed.headers.map((h,i)=>`<option value="${i}"${i===sel?" selected":""}>${esc(h||"欄 "+(i+1))}</option>`).join("");
+  $("#impBody").innerHTML=`
+    <div class="small">檔案 <b>${esc(parsed.file)}</b> · 工作表「${esc(parsed.sheet)}」· ${parsed.data.length} 列</div>
+    <section><div class="sect-title">欄位對應（已自動判斷，可調整）</div>
+      <table class="maptable"><tbody>${FIELDS.map(f=>`<tr><td style="width:40%">${f.label}${f.req?' <span style="color:var(--bad)">*</span>':""}</td><td><select data-map="${f.key}" aria-label="${f.label}">${opt(parsed.map[f.key])}</select></td></tr>`).join("")}</tbody></table></section>
+    <section><div class="sect-title">匯入結果預覽</div>
+      <div class="sum"><div><b>${p.add.length}</b><span class="small">新增</span></div><div><b>${p.upd.length}</b><span class="small">更新申請資料</span></div><div><b>${p.same}</b><span class="small">已存在、無變動</span></div><div><b>${p.dupInFile+p.skipped}</b><span class="small">檔案內重複／空白</span></div></div>
+      <p class="hint">已在合約庫手動補的類型、期間、負責人、檔案連結不會被覆蓋。新資料會依分類規則自動標類型，並從備註擷取期間。</p></section>
+    <div class="bar" id="impBar" hidden><i></i></div>`;
+  $("#impBody").querySelectorAll("[data-map]").forEach(s=>s.addEventListener("change",()=>{parsed.map[s.dataset.map]=Number(s.value);renderMapping();}));
+  const ok=parsed.map.formNo>=0&&(p.add.length+p.upd.length)>0;
+  $("#impFoot").innerHTML=`<button class="btn" type="button" id="impBack">換檔案</button><button class="btn primary" type="button" id="impGo"${ok?"":" disabled"}>${parsed.map.formNo<0?"請先對應「表單編號」":(p.add.length+p.upd.length)?`匯入 ${p.add.length+p.upd.length} 筆`:"沒有需要匯入的資料"}</button>`;
+  $("#impBack").addEventListener("click",openImport);
+  $("#impGo").addEventListener("click",()=>runImport(p));
+}
+async function runImport(p){
+  importBusy=true;const go=$("#impGo"),back=$("#impBack");go.disabled=true;back.disabled=true;
+  const bar=$("#impBar");bar.hidden=false;const fill=bar.querySelector("i");
+  const CH=150;const adds=p.add.map(x=>Object.assign({},x.doc,{id:x.id}));const upds=p.upd;
+  const total=Math.max(1,Math.ceil(adds.length/CH)+Math.ceil(upds.length/CH));let done=0,added=0,updated=0,err=null,slackMsg="";
+  try{
+    for(let i=0;i<adds.length;i+=CH){const r=await run("apiImport",adds.slice(i,i+CH),[],null);added+=r.added;done++;fill.style.width=(done/total*100)+"%";go.textContent=`匯入中 ${Math.min(i+CH,adds.length)}/${adds.length}`;}
+    for(let i=0;i<upds.length;i+=CH){const r=await run("apiImport",[],upds.slice(i,i+CH),null);updated+=r.updated;done++;fill.style.width=(done/total*100)+"%";}
+    const fin=await run("apiImport",[],[],{file:parsed.file,rows:parsed.data.length,newlyDone:p.newlyDone});slackMsg=fin&&fin.slack||"";
+  }catch(e){err=e;}
+  importBusy=false;
+  toast(err?`匯入中斷（已新增 ${added}、更新 ${updated} 筆）：${errMsg(err)}。可重新匯入同一份檔案補齊。`:`匯入完成：新增 ${added}、更新 ${updated} 筆${slackMsg?"｜"+slackMsg:""}`);
+  closeOverlay();await reload();
+}
+
+/* ---------- 操作說明（SOP） ---------- */
+function mdLite(src){
+  const out=[];let list=null,liOpen=false,sub=false;
+  const closeSub=()=>{if(sub){out.push("</ul>");sub=false;}};
+  const closeLi=()=>{closeSub();if(liOpen){out.push("</li>");liOpen=false;}};
+  const close=()=>{closeLi();if(list){out.push(`</${list}>`);list=null;}};
+  const inline=t=>esc(t).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>");
+  String(src||"").split(/\r?\n/).forEach(raw=>{
+    const line=raw.replace(/\s+$/,"");let m;
+    if(!line.trim()){close();return;}
+    if((m=line.match(/^(#{1,3})\s+(.*)$/))){close();const lv=m[1].length;out.push(`<h${lv+1} class="sop-h${lv}">${inline(m[2])}</h${lv+1}>`);return;}
+    const ord=line.match(/^(\s*)(\d+)[.)]\s+(.*)$/),bul=line.match(/^(\s*)[-*•]\s+(.*)$/);
+    const it=ord||bul;
+    if(it){
+      const indent=it[1].length>=2,text=ord?ord[3]:bul[2];
+      if(indent&&liOpen){if(!sub){out.push("<ul>");sub=true;}out.push(`<li>${inline(text)}</li>`);return;}
+      const kind=ord?"ol":"ul";
+      if(list!==kind){close();out.push(`<${kind}>`);list=kind;}else closeLi();
+      out.push(`<li>${inline(text)}`);liOpen=true;return;
+    }
+    close();out.push(`<p>${inline(line)}</p>`);
+  });
+  close();return out.join("");
+}
+async function openHelp(){
+  overlay(`<div class="modal sop" role="dialog" aria-modal="true" aria-label="操作說明">
+    <div class="dhead"><div><h2>操作說明</h2><span class="small" id="sop_meta">合約庫的使用步驟與注意事項</span></div>
+      <div style="display:flex;gap:6px;align-items:center">${isAdmin?`<button class="btn" type="button" id="sop_edit">編輯</button>`:""}
+      <button class="btn ghost" type="button" data-close aria-label="關閉"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div></div>
+    <div class="dbody" id="sop_body"><p class="small">載入中…</p></div>
+    <div class="dfoot" id="sop_foot"><button class="btn" type="button" data-close>關閉</button></div></div>`);
+  let text="";
+  try{text=await run("apiGetSop");}catch(e){$("#sop_body").innerHTML=`<p style="color:var(--bad)">${esc(errMsg(e))}</p>`;return;}
+  const view=()=>{$("#sop_body").innerHTML=`<article class="sop-doc">${mdLite(text)}</article>`;
+    $("#sop_foot").innerHTML=`<button class="btn" type="button" data-close>關閉</button>`;$("#sop_foot [data-close]").addEventListener("click",closeOverlay);
+    const eb=$("#sop_edit");if(eb)eb.hidden=false;};
+  view();
+  const eb=$("#sop_edit");if(!eb)return;
+  eb.addEventListener("click",()=>{
+    eb.hidden=true;
+    $("#sop_body").innerHTML=`<div class="field"><label for="sop_text">內容（# 大標、## 小標、1. 步驟、- 項目、**粗體**）</label><textarea id="sop_text" spellcheck="false"></textarea></div>`;
+    $("#sop_text").value=text;
+    $("#sop_foot").innerHTML=`<span class="small" style="margin-right:auto">存檔後所有人都會看到新內容</span><button class="btn ghost" type="button" id="sop_reset">還原成預設</button><button class="btn" type="button" id="sop_cancel">取消</button><button class="btn primary" type="button" id="sop_save">儲存</button>`;
+    $("#sop_cancel").addEventListener("click",view);
+    $("#sop_reset").addEventListener("click",async()=>{try{$("#sop_text").value=await run("apiGetDefaultSop");toast("已載入預設內容，按「儲存」才會生效");}catch(e){toast(errMsg(e));}});
+    $("#sop_save").addEventListener("click",async e=>{const b=e.currentTarget;b.disabled=true;b.textContent="儲存中…";
+      const v=$("#sop_text").value;
+      try{await run("apiSaveSop",v);text=v;toast("操作說明已更新");view();}catch(err){b.disabled=false;b.textContent="儲存";toast(errMsg(err));}});
+  });
+}
+
+/* ---------- 催簽文字 ---------- */
+function remindText(who,list){
+  const first=who.replace(/[一-鿿]/g,"").trim().split(/\s+/)[0]||who;
+  const md=d=>d?d.slice(5).replace("-","/"):"";
+  return `${first} 您好，以下 ${list.length} 件用印申請目前在您這邊簽核，再麻煩您有空時協助處理，謝謝！\n\n`
+    +list.map((c,i)=>`${i+1}. ${c.formNo}｜${c.counterparty||"（未填對象）"}\n   ${c.note||""}\n   申請人：${c.applicant||"—"}（${md(c.applyDate)} 申請）`).join("\n\n");
+}
+function openRemind(){
+  const groups={};
+  const REMIND_EXCLUDE=["hr"];const isExcl=c=>REMIND_EXCLUDE.includes(String(c.dept||"").trim().toLowerCase());
+  const skipped=contracts.filter(c=>c.sealState==="簽核中"&&isExcl(c)).length;
+  contracts.filter(c=>c.sealState==="簽核中"&&!isExcl(c)).sort((a,b)=>a.applyDate<b.applyDate?-1:1).forEach(c=>{const k=c.sealWho||"（報表未標示簽核人）";(groups[k]=groups[k]||[]).push(c);});
+  const names=Object.keys(groups).sort((a,b)=>groups[b].length-groups[a].length);
+  overlay(`<div class="modal" role="dialog" aria-modal="true" aria-label="產生催簽文字">
+    <div class="dhead"><div><h2>產生催簽文字</h2><span class="small">勾選要提醒的用印，複製文字後貼給簽核人。文字框可以直接修改。${skipped?`已排除費用歸屬為 HR 的 ${skipped} 件。`:""}</span></div>
+      <button class="btn ghost" type="button" data-close aria-label="關閉"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="dbody">${names.length?names.map((w,gi)=>`<section class="rgroup" data-g="${gi}">
+        <div class="sect-title">等待 ${esc(w)}（${groups[w].length} 件）</div>
+        <div class="rlist">${groups[w].map((c,i)=>`<label class="check"><input type="checkbox" data-g="${gi}" data-i="${i}" checked> <span><span class="num">${esc(c.formNo)}</span>　${esc(c.counterparty)}｜${esc(String(c.note||"").slice(0,36))}</span></label>`).join("")}</div>
+        <textarea class="rtext" id="rt_${gi}" spellcheck="false"></textarea>
+        <div style="display:flex;justify-content:flex-end;margin-top:6px"><button class="btn primary" type="button" data-copy="${gi}">複製給 ${esc(w.replace(/[一-鿿]/g,"").trim()||w)}</button></div>
+      </section>`).join(""):`<p class="empty">目前沒有簽核中的用印。</p>`}</div>
+    <div class="dfoot"><button class="btn" type="button" data-close>關閉</button></div></div>`);
+  const fill=gi=>{const w=names[gi];const picked=groups[w].filter((c,i)=>{const cb=document.querySelector(`input[data-g="${gi}"][data-i="${i}"]`);return cb&&cb.checked;});
+    const ta=$("#rt_"+gi);ta.value=picked.length?remindText(w,picked):"";const b=document.querySelector(`[data-copy="${gi}"]`);if(b)b.disabled=!picked.length;};
+  names.forEach((w,gi)=>fill(gi));
+  $("#overlay").querySelectorAll("input[data-g]").forEach(cb=>cb.addEventListener("change",()=>fill(Number(cb.dataset.g))));
+  $("#overlay").querySelectorAll("[data-copy]").forEach(b=>b.addEventListener("click",async()=>{
+    const ta=$("#rt_"+b.dataset.copy);
+    try{await navigator.clipboard.writeText(ta.value);toast("已複製，可以貼到 Slack 或 Email");}
+    catch(_){ta.focus();ta.select();try{document.execCommand("copy");toast("已複製");}catch(__){toast("請按 Ctrl/⌘＋C 複製已選取的文字");}}
+  }));
+}
+
+/* ---------- settings ---------- */
+function typesToText(ts){return ts.map(t=>`${t.name} | ${t.track?"追蹤":"不追蹤"} | ${t.kw.join(", ")}`).join("\n");}
+function textToTypes(txt){return txt.split(/\n/).map(l=>l.split("|").map(s=>s.trim())).filter(a=>a[0]).map(a=>({name:a[0],track:/^(追蹤|y|yes|true|是)$/i.test(a[1]||""),kw:(a[2]||"").split(/[,，、]/).map(s=>s.trim()).filter(Boolean)}));}
+function openSettings(){
+  const ro=!isAdmin;
+  overlay(`<div class="modal rules" role="dialog" aria-modal="true" aria-label="分類規則">
+    <div class="dhead"><div><h2>分類規則</h2><span class="small">讓每份文件用同一套標準分類。規則由上而下比對備註與合作對象，第一個命中的關鍵字決定類型。</span></div>
+      <button class="btn ghost" type="button" data-close aria-label="關閉"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="dbody">
+      <div class="field"><label for="s_types">文件類型（每行一種：類型名稱 | 追蹤/不追蹤到期 | 關鍵字，以逗號分隔）</label><textarea id="s_types" spellcheck="false">${esc(typesToText(settings.types))}</textarea>
+        <span class="hint">「追蹤」的類型若沒有到期日，會出現在「待補合約期間」。</span></div>
+      <div class="grid2">
+        <div class="field"><label for="s_alias">費用歸屬統一名稱（別名=標準名稱）</label><textarea id="s_alias" spellcheck="false" style="min-height:120px">${esc(settings.aliases)}</textarea></div>
+        <div class="field"><label for="s_notice">預設提前提醒天數</label><input id="s_notice" type="number" min="0" max="365" value="${settings.noticeDays}">
+          <span class="hint">個別合約可在詳情中另外設定。</span></div>
+      </div>
+      <div class="field"><label for="s_nofile">不需留存檔案的費用歸屬（以逗號分隔）</label><input id="s_nofile" type="text" value="${esc(settings.noFileDepts??"HR, Finance")}" placeholder="HR, Finance">
+        <span class="hint">這些部門的文件不會出現在「缺合約檔案」。</span></div>
+      <div class="field"><label for="s_root">Google Drive 歸檔資料夾（貼上資料夾網址）</label><input id="s_root" type="text" value="${esc("https:\/\/drive.google.com/drive/folders/"+(settings.driveRoot||DRIVE_ROOT_DEFAULT))}">
+        <span class="hint">底下的「公司 › 部門」子資料夾會用來自動判斷上傳位置。</span>
+      </div>
+      <div class="field"><label for="s_mail">到期提醒收件人（Email，多位以逗號分隔）</label><input id="s_mail" type="text" value="${esc(settings.reminderEmails||"")}" placeholder="eva.chang@swag.live, legal@swag.live">
+        <span class="hint">每週一早上 9 點寄出「即將到期」與「已到期未處理」的合約清單。</span>
+      </div>
+    </div>
+    <div class="dfoot">${ro?`<span class="small" style="margin-right:auto">只有管理者可以修改規則</span>`:""}
+      <button class="btn" type="button" id="s_reset"${ro?" disabled":""}>恢復預設</button>
+      <button class="btn" type="button" id="s_apply"${ro||isExample?" disabled":""} title="重新分類所有「自動分類」的文件，手動改過的不受影響">儲存並重新分類</button>
+      <button class="btn primary" type="button" id="s_save"${ro?" disabled":""}>儲存</button></div></div>`);
+  $("#s_reset").addEventListener("click",()=>{$("#s_types").value=typesToText(DEFAULT_TYPES);$("#s_alias").value=DEFAULT_SETTINGS.aliases;$("#s_notice").value=30;});
+  $("#s_save").addEventListener("click",()=>saveSettings(false));
+  $("#s_apply").addEventListener("click",()=>saveSettings(true));
+}
+async function saveSettings(reapply){
+  const rootIn=$("#s_root").value.trim();const rm=rootIn.match(/folders\/([A-Za-z0-9_-]+)/);
+  const next={types:textToTypes($("#s_types").value),aliases:$("#s_alias").value,noticeDays:Math.max(0,Number($("#s_notice").value)||30),driveRoot:rm?rm[1]:rootIn,reminderEmails:$("#s_mail").value.trim(),noFileDepts:$("#s_nofile").value.trim()};
+  if(!next.types.length){toast("至少需要一種文件類型");return;}
+  const prevRoot=settings.driveRoot;
+  settings=Object.assign({},settings,next);
+  if(next.driveRoot!==prevRoot)for(const k in folderCache)delete folderCache[k];
+  const jobs=reapply?contracts.filter(c=>c.typeAuto!==false).map(c=>{const t=classify(c),d=normDept(c.deptRaw||c.dept);return (t!==c.type||d!==c.dept)?{id:c.id,patch:{type:t,dept:d}}:null;}).filter(Boolean):[];
+  const b=$("#s_save");if(b){b.disabled=true;b.textContent="儲存中…";}
+  try{const n=await run("apiSaveSettings",next,jobs);jobs.forEach(j=>setLocal(j.id,j.patch));const w=next.slackToken;if(w)settings.slackSet=!/^(off|關閉|清除)$/i.test(w);delete settings.slackToken;toast(reapply?`規則已儲存，重新分類 ${n} 筆`:"規則已儲存");}
+  catch(e){toast(errMsg(e));if(b){b.disabled=false;b.textContent="儲存";}return;}
+  closeOverlay();render();
+}
+
+/* ---------- open sheet ---------- */
+function exportCsv(){if(sheetUrl)window.open(sheetUrl,"_blank");else toast("找不到試算表連結");}
+
+/* ---------- boot ---------- */
+function run(fn,...args){return new Promise((res,rej)=>{google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...args);});}
+function errMsg(e){const m=(e&&e.message)||String(e||"");return m.replace(/^Exception:\s*/,"")||"發生錯誤，請稍後再試";}
+let sheetUrl="";let allRows=[];
+async function reload(){
+  const b=await run("apiBoot");
+  me=b.me;
+  if(b.denied){loaded=true;contracts=[];$("#rows").innerHTML=`<tr><td colspan="12" class="empty">${esc(me.email)} 還沒有合約庫的使用權限。<br>請聯絡管理者在平台「設定 › 權限」開通。</td></tr>`;$("#count").textContent="";canWrite=false;applyWriteGate();return;}
+  canWrite=me.role==="edit"||me.role==="admin";isAdmin=me.role==="admin";
+  settings=Object.assign({},DEFAULT_SETTINGS,b.settings);if(!Array.isArray(settings.types)||!settings.types.length)settings.types=DEFAULT_TYPES;
+  meta=b.settings.meta||null;sheetUrl=b.sheetUrl;
+  for(const k in fileCache)delete fileCache[k];
+  allRows=b.rows.map(withSeal);contracts=allRows.filter(c=>c.status!=="deleted");loaded=true;isExample=false;render();
+}
+render();
+$("#rows").innerHTML=`<tr><td colspan="12" class="empty">載入合約資料中…（第一次開啟約需 3–5 秒）</td></tr>`;
+reload().catch(e=>{loaded=true;$("#rows").innerHTML=`<tr><td colspan="12" class="empty">無法載入資料：${esc(errMsg(e))}</td></tr>`;});
+})();
+</script>
+
+</body>
+</html>
