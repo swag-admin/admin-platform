@@ -89,7 +89,7 @@ th,td{padding:10px 14px;border-bottom:1px solid var(--line);text-align:left;vert
 th{font-size:12px;color:var(--muted);font-weight:600;background:#f8f9fc;white-space:nowrap;letter-spacing:.3px}
 tr.click{cursor:pointer}tr.click:hover td{background:#f6faff}
 tr:last-child td{border-bottom:0}
-tr.done td{color:var(--muted)}tr.done .ttl{text-decoration:line-through}
+tr.done td{color:var(--muted)}tr.done .ttl{text-decoration:line-through}tr.jdone td{color:var(--muted)}
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .filters select,.filters input,.fld input,.fld select,.fld textarea{padding:7px 11px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 .filters input{min-width:220px}
@@ -995,7 +995,7 @@ function jyBoard() {
     <div class="tablewrap"><table style="min-width:900px"><thead><tr><th>階段</th><th>員工</th><th>基準日</th><th style="width:170px">行政進度</th><th>下一個待辦</th><th>附件</th></tr></thead><tbody>${rows.map(r => {
       const its = r.items || [], d = its.filter(i => i.done).length, late = its.filter(i => !i.done && daysLeft(jyDue(r, i), t) < 0).length;
       const nx = its.filter(i => !i.done).sort((a, b) => a.off - b.off)[0], m = jyMissing(r).length;
-      return `<tr class="click${r.status === "完成" ? " done" : ""}" data-jy="${esc(r.id)}"><td>${jyStageChip(r.stage)}</td>
+      return `<tr class="click${r.status === "完成" ? " jdone" : ""}" data-jy="${esc(r.id)}"><td>${jyStageChip(r.stage)}</td>
         <td><b class="ttl">${esc(r.name)}</b><div class="note">${esc(r.dept)}${r.title ? "・" + esc(r.title) : ""}</div></td>
         <td style="white-space:nowrap">${esc(JY.base[r.stage])} ${showDate(r.date)}<div class="note">${daysLeft(r.date, t) >= 0 ? "還有 " + daysLeft(r.date, t) + " 天" : "已過 " + (-daysLeft(r.date, t)) + " 天"}</div></td>
         <td><div style="display:flex;align-items:center;gap:8px"><div class="load" style="flex:1"><i style="width:${its.length ? d / its.length * 100 : 0}%"></i></div><span class="note">${d}/${its.length}</span></div>${late ? `<span class="chip red" style="margin-top:4px">逾期 ${late}</span>` : ""}</td>
@@ -1037,7 +1037,7 @@ async function jyPeople() {
     $("#jpBody").innerHTML = list.map(e => {
       const js = (byEmp[e.id] || []).sort((a, b) => String(b.date).localeCompare(String(a.date)));
       const openOff = js.some(r => r.stage === "離職" && r.status !== "完成");
-      return `<tr${e.active === false ? ' class="done"' : ""}><td class="mono">${esc(e.emp_no)}</td><td><b class="ttl">${esc(e.name)}</b>${e.active === false ? ' <span class="chip">已離職</span>' : ""}</td><td>${esc(e.dept || "—")}</td>
+      return `<tr${e.active === false ? ' class="jdone"' : ""}><td class="mono">${esc(e.emp_no)}</td><td><b class="ttl">${esc(e.name)}</b>${e.active === false ? ' <span class="chip">已離職</span>' : ""}</td><td>${esc(e.dept || "—")}</td>
         <td class="note">${esc(e.email || "—")}</td><td style="white-space:nowrap">${e.hire_date ? showDate(String(e.hire_date).slice(0, 10)) : '<span class="note">—</span>'}</td>
         <td>${js.map(r => { const its = r.items || [], dn = its.filter(i => i.done).length; return `<button class="btn link" data-jy="${esc(r.id)}">${JY_ICON[r.stage]} ${esc(r.stage)} ${r.status === "完成" ? "✓" : dn + "/" + its.length}</button>`; }).join("<br>") || '<span class="note">—</span>'}</td>
         <td style="white-space:nowrap">${JY.canEdit && e.active !== false && !openOff ? `<button class="btn small" data-joff="${esc(e.id)}">👋 辦離職</button>` : ""}</td></tr>`;
