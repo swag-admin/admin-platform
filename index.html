@@ -1065,9 +1065,52 @@ function jyTplEdit(st) {
     catch (err) { toast(err.message); b.disabled = false; }
   });
 }
+/* ---- 員工旅程 × 設備資產（Supabase）：員工名單、名下設備、新增員工 ---- */
+let JYE = null;   // {ok, nosession, error, rows, admin}
+async function jyEmps(force) {
+  if (JYE && !force) return JYE;
+  const sb = await sbSession();
+  if (!sb) return (JYE = {nosession: true, rows: []});
+  const [emp, me] = await Promise.all([
+    sb.from("employees").select("id,emp_no,name,dept,email,active").order("emp_no"),
+    sb.auth.getUser()
+  ]);
+  if (emp.error) return (JYE = {error: emp.error.message, rows: []});
+  let admin = false;
+  try { const em = ((me.data && me.data.user && me.data.user.email) || "").toLowerCase(); const {data} = await sb.from("roles").select("role").eq("email", em); admin = (data || []).some(x => x.role === "admin"); } catch (e) {}
+  return (JYE = {ok: true, rows: emp.data || [], admin});
+}
+const jyAcct = e => String(e || "").toLowerCase().endsWith("@swag.live") ? String(e).split("@")[0] : "";
+/** 用 Email 帳號（找不到再用姓名）對到設備資產的員工 */
+function jyFindEmp(r) {
+  if (!JYE || !JYE.ok) return null;
+  const em = (String(r.acct || "").trim() + "@swag.live").toLowerCase();
+  return JYE.rows.find(e => String(e.email || "").toLowerCase() === em) || JYE.rows.find(e => String(e.name || "").trim() === String(r.name || "").trim()) || null;
+}
+/** 建議下一個員工編號：取最常見的前綴，數字 +1 */
+function jyNextEmpNo() {
+  const by = {};
+  (JYE && JYE.rows || []).forEach(e => { const m = String(e.emp_no || "").match(/^(.*?)(\d+)$/); if (!m) return; const k = m[1]; (by[k] = by[k] || {n: 0, max: 0, w: m[2].length}).n++; by[k].max = Math.max(by[k].max, Number(m[2])); by[k].w = Math.max(by[k].w, m[2].length); });
+  const k = Object.keys(by).sort((a, b) => by[b].n - by[a].n)[0];
+  return k == null ? "" : k + String(by[k].max + 1).padStart(by[k].w, "0");
+}
+async function jyAddEmp(v) {
+  const sb = await sbSession(); if (!sb) throw new Error("沒有登入設備資產");
+  const data = {emp_no: v.emp_no, name: v.name, dept: v.dept || null, email: v.email, active: true, hire_date: v.hire_date || null};
+  let {error} = await sb.from("employees").insert(data);
+  if (error && /hire_date/.test(error.message)) { delete data.hire_date; ({error} = await sb.from("employees").insert(data)); }
+  if (error) throw new Error(/duplicate|unique/i.test(error.message) ? "員工編號或 Email 已經在設備資產名單裡" : error.message);
+  await jyEmps(true);
+}
+async function jyAssetsOf(empId) {
+  const sb = await sbSession(); if (!sb) return {nosession: true};
+  const {data, error} = await sb.from("assets").select("id,tag,name,status,assigned_date,due_date").eq("holder_id", empId).order("tag");
+  return error ? {error: error.message} : {rows: data || []};
+}
+const JY_AST = {in_use: "使用中", borrowed: "借用中", repair: "維修中"};
 function jyDrawer(r) {
   const isNew = !r;
-  let editing = isNew;
+  let editing = isNew, pick = null, ast = null;   // pick＝從設備資產名單選到的員工；ast＝名下設備
   const t = JY.today || today();
   const d = document.createElement("div"); d.className = "drawer";
   const ppl = JY.people || [];
@@ -1077,21 +1120,22 @@ function jyDrawer(r) {
   const form = () => {
     const v = r || {stage: "到職", name: "", acct: "", dept: "", title: "", boss: "", date: addDays(t, 7), note: ""};
     return `<div class="fld">階段${isNew ? `<div style="display:flex;gap:16px;color:var(--fg)">${["到職", "離職"].map(s => `<label class="check"><input type="radio" name="j_stage" value="${s}" ${v.stage === s ? "checked" : ""}> ${JY_ICON[s]} ${s}</label>`).join("")}</div>` : `<div>${jyStageChip(v.stage)} <span class="note">建立後不能改階段</span></div>`}</div>
-      <div class="row2"><label class="fld">姓名<input id="j_name" value="${esc(v.name)}" placeholder="例如：王小明"></label>
+      ${isNew ? '<div id="j_empst" class="note"></div>' : ""}
+      <div class="row2"><label class="fld">姓名<input id="j_name" value="${esc(v.name)}" placeholder="${isNew ? "打姓名或員工編號，可從設備資產名單選" : "例如：王小明"}" autocomplete="off"><div id="j_sug" style="display:flex;flex-direction:column;gap:4px"></div></label>
         <label class="fld">公司 Email 帳號<input id="j_acct" value="${esc(v.acct)}" placeholder="例如：wang.xm（@swag.live 前面）"></label></div>
       <div class="row2"><label class="fld">部門<input id="j_dept" list="j_depts" value="${esc(v.dept)}" placeholder="例如：Marketing"><datalist id="j_depts">${(JY.depts || []).map(x => `<option value="${esc(x)}">`).join("")}</datalist></label>
         <label class="fld">職稱<input id="j_title" value="${esc(v.title)}"></label></div>
       <div class="row2"><label class="fld">直屬主管<input id="j_boss" value="${esc(v.boss)}"></label>
         <label class="fld"><span id="j_datel">${esc(JY.base[v.stage])}</span><input id="j_date" type="date" value="${esc(v.date)}"></label></div>
       <label class="fld">備註<textarea id="j_note" placeholder="例如：主管希望先開 Figma 權限">${esc(v.note || "")}</textarea></label>
-      ${isNew ? '<div class="card" style="--mc:var(--accent)" id="j_prev"></div>' : ""}`;
+      ${isNew ? '<div id="j_newemp"></div><div class="card" style="--mc:var(--accent)" id="j_prev"></div>' : ""}`;
   };
   const folderPath = v => `員工旅程附件 / ${esc(v.dept || "部門")} / ${esc(v.name || "姓名")}（${esc(v.acct || "帳號")}）/ ${esc(v.stage)}`;
   const paint = () => {
     if (editing) {
       d.innerHTML = `<div class="panel wide" role="dialog" aria-label="員工旅程"><div class="hdr"><h2>${isNew ? "新增員工旅程" : "修改基本資料"}</h2><button class="btn small" data-x>關閉</button></div>${form()}
         <div class="foot">${isNew ? "" : '<button class="btn" data-cancel>取消</button>'}<span class="sp"></span><button class="btn primary" data-jsave>${isNew ? "建立" : "儲存"}</button></div></div>`;
-      if (isNew) prev();
+      if (isNew) { prev(); empUI(); }
       return;
     }
     const its = r.items || [], dn = its.filter(i => i.done).length;
@@ -1100,7 +1144,7 @@ function jyDrawer(r) {
       ${JY.canEdit ? '<div><button class="btn small" data-jedit>修改基本資料</button></div>' : ""}
       <div class="banner" style="margin:0"><div class="note">附件自動存到這個 Drive 資料夾（只有行政看得到，經平台代開）</div><div class="mono" style="font-size:12.5px;word-break:break-all">📁 ${folderPath(r)} /</div><div class="note" style="margin-top:4px">檔名：上傳日期_階段_項目_姓名_序號，上傳後可以改檔名。</div></div>
       ${JY.cats.filter(k => its.some(i => i.cat === k)).map(k => `<div><div style="display:flex;gap:8px;align-items:center;margin:6px 0"><span class="chip teal">${esc(k)}</span><span class="note">${its.filter(i => i.cat === k && i.done).length}/${its.filter(i => i.cat === k).length}</span></div>
-        ${k === "設備" ? '<div class="banner warn" style="margin:0 0 6px;font-size:12.5px">設備資產還沒直接連動（等 Supabase 開啟 Google 登入）。請先到「設備資產」指派或收回，完成後回來打勾、上傳簽收單。 <button class="btn small" data-go="assets">前往設備資產 →</button></div>' : ""}
+        ${k === "設備" ? `<div class="banner" style="margin:0 0 6px;font-size:12.5px" id="j_ast">${astHtml()}</div>` : ""}
         ${its.filter(i => i.cat === k).map(it => { const can = jyCanItem(it), fs = jyFiles(r, it.id), due = jyDue(r, it);
           return `<div style="border-bottom:1px solid var(--line);padding:8px 2px">
           <div style="display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:center">
@@ -1118,7 +1162,64 @@ function jyDrawer(r) {
         <label class="check"><input type="checkbox" id="j_iatt"> 需附件</label><button class="btn" data-jiadd>＋ 新增項目</button></div></div>` : ""}
       <div><div class="note" style="margin-bottom:6px">處理紀錄</div><ul class="timeline">${(r.log || []).slice().reverse().slice(0, 30).map(l => `<li><b>${esc(jyName(l.by))}</b> <span class="note">${fmtAt(l.at)}</span><div class="note">${esc(l.text)}</div></li>`).join("") || '<li class="note">還沒有紀錄</li>'}</ul></div>
       <div class="foot">${JY.canEdit ? '<button class="btn danger" data-jdel>刪除這筆</button>' : ""}<span class="sp"></span><button class="btn primary" data-x>完成</button></div></div>`;
+    if (!ast) loadAst();
   };
+  /** 名下設備（讀設備資產；指派、收回還是在設備資產頁做） */
+  async function loadAst() {
+    ast = {loading: true};
+    try {
+      const E = await jyEmps();
+      if (E.nosession) ast = {nosession: true};
+      else if (E.error) ast = {error: E.error};
+      else { const emp = jyFindEmp(r); ast = emp ? Object.assign({emp}, await jyAssetsOf(emp.id)) : {noemp: true}; }
+    } catch (e) { ast = {error: e.message}; }
+    const box = d.querySelector("#j_ast"); if (box) box.innerHTML = astHtml();
+  }
+  function astHtml() {
+    const go = '<button class="btn small" data-go="assets">前往設備資產 →</button>';
+    if (!ast || ast.loading) return '<span class="spin"></span> 讀取設備資產…';
+    if (ast.nosession) return `設備資產還沒登入，看不到名下設備。請先打開一次「設備資產」登入，回來就會自動連動。 ${go}`;
+    if (ast.error) return `讀不到設備資產：${esc(ast.error)} ${go}`;
+    if (ast.noemp) return `設備資產的員工名單裡找不到 ${esc(r.name)}（${esc(r.acct)}@swag.live）。${r.stage === "到職" ? "請先在設備資產新增這位員工，才能指派設備。" : "請到設備資產確認保管人。"} ${go}`;
+    const rows = ast.rows || [], e = ast.emp;
+    const head = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:${rows.length ? 6 : 0}px"><b>名下設備</b><span class="note">設備資產：${esc(e.emp_no)} ${esc(e.name)}${e.dept ? "・" + esc(e.dept) : ""}${e.active === false ? "（已標記離職）" : ""}</span><span class="sp" style="flex:1"></span><button class="btn small" data-astre>重新整理</button> ${go}</div>`;
+    const list = rows.length ? `<ul class="plain" style="gap:4px">${rows.map(a => `<li><span class="t"><span class="mono">${esc(a.tag)}</span> ${esc(a.name || "")}</span><span class="note">${esc(JY_AST[a.status] || a.status || "")}${a.assigned_date ? "・" + showDate(String(a.assigned_date).slice(0, 10)) + " 起" : ""}</span></li>`).join("")}</ul>` : "";
+    const tip = r.stage === "離職"
+      ? (rows.length ? `<div class="note" style="margin-top:6px;color:var(--warn)">⚠️ 還有 ${rows.length} 件沒收回。到設備資產辦歸還後，按「重新整理」，清空了再勾「收回設備」。</div>` : '<div class="note" style="margin-top:6px;color:var(--done)">✅ 名下已經沒有設備，可以勾「收回設備」了。</div>')
+      : (rows.length ? "" : '<div class="note">目前名下還沒有設備，到設備資產指派後按「重新整理」就會出現。</div>');
+    return head + list + tip;
+  }
+  /** 新增時：從設備資產名單選人；到職的新人不在名單時，可以順便加進去 */
+  async function empUI() {
+    const stEl = d.querySelector("#j_empst"); if (!stEl) return;
+    if (!JYE) stEl.innerHTML = '<span class="spin"></span> 讀取設備資產員工名單…';
+    const E = await jyEmps();
+    if (!d.querySelector("#j_empst")) return;
+    stEl.innerHTML = E.ok ? `已連動設備資產員工名單（${E.rows.length} 人），打姓名或員工編號就能選。` : E.nosession ? '設備資產還沒登入，先手動填寫。（打開一次「設備資產」登入，就能直接從名單選人）' : "讀不到設備資產員工名單：" + esc(E.error);
+    newEmpBox();
+  }
+  function stageNow() { return (d.querySelector("[name=j_stage]:checked") || {}).value || "到職"; }
+  function sugg() {
+    const box = d.querySelector("#j_sug"); if (!box) return;
+    const q = d.querySelector("#j_name").value.trim().toLowerCase();
+    if (!JYE || !JYE.ok || !q || (pick && pick.name.toLowerCase() === q)) { box.innerHTML = ""; return; }
+    const off = stageNow() === "離職";
+    const hits = JYE.rows.filter(e => (off ? e.active !== false : true) && [e.emp_no, e.name, e.email, e.dept].join(" ").toLowerCase().includes(q)).slice(0, 6);
+    box.innerHTML = hits.map(e => `<button type="button" class="btn small" data-pick="${esc(e.id)}" style="text-align:left;justify-content:flex-start"><span class="mono">${esc(e.emp_no)}</span>&nbsp;${esc(e.name)} <span class="note">${esc(e.dept || "")}${e.email ? "・" + esc(e.email) : ""}${e.active === false ? "・已離職" : ""}</span></button>`).join("")
+      || (off ? '<span class="note" style="color:var(--warn)">名單裡找不到在職的這個人</span>' : '<span class="note">名單裡沒有，是新人的話照常填寫即可</span>');
+  }
+  function newEmpBox() {
+    const box = d.querySelector("#j_newemp"); if (!box) return;
+    const name = d.querySelector("#j_name").value.trim(), acct = d.querySelector("#j_acct").value.trim().replace(/@.*$/, "");
+    if (!JYE || !JYE.ok || stageNow() !== "到職" || pick) { box.innerHTML = pick ? `<div class="banner" style="margin:0">✅ 已對應設備資產員工：<span class="mono">${esc(pick.emp_no)}</span> ${esc(pick.name)} <button type="button" class="btn small" data-unpick>取消對應</button></div>` : ""; return; }
+    const dup = acct && JYE.rows.find(e => String(e.email || "").toLowerCase() === (acct + "@swag.live").toLowerCase());
+    if (dup) { box.innerHTML = `<div class="banner" style="margin:0">這個 Email 已經在設備資產名單裡（<span class="mono">${esc(dup.emp_no)}</span> ${esc(dup.name)}），會自動對應，不會重複新增。</div>`; return; }
+    if (box.querySelector("#j_addemp")) return;   // 已經畫好，保留使用者輸入
+    box.innerHTML = JYE.admin
+      ? `<div class="card" style="--mc:var(--blue)"><label class="check"><input type="checkbox" id="j_addemp" checked> 同時新增到設備資產員工名單（Harumi 指派筆電時就能直接選到）</label>
+          <label class="fld" style="margin-top:6px">員工編號<input id="j_empno" value="${esc(jyNextEmpNo())}" placeholder="例如：SW0123"></label><div class="note">會用上面的姓名、Email、部門，到職日＝報到日。</div></div>`
+      : '<div class="note">你沒有設備資產「管理」權限，新人不會自動加進設備資產名單；請請 Harumi 或 Eva 在設備資產新增。</div>';
+  }
   function prev() {
     const st = (d.querySelector("[name=j_stage]:checked") || {}).value || "到職", dt = d.querySelector("#j_date").value || t;
     d.querySelector("#j_datel").textContent = JY.base[st];
@@ -1127,7 +1228,13 @@ function jyDrawer(r) {
     d.querySelector("#j_prev").innerHTML = `<h3 style="font-size:14px">會自動建立 ${list.length} 個行政項目</h3><div class="note mono" style="word-break:break-all;margin-bottom:8px">📁 ${folderPath(v)} /</div>
       <ul class="plain" style="gap:5px">${list.map(x => `<li><span class="t">${showDate(addDays(dt, Number(x.off) || 0))}　${esc(x.t)}${x.att ? " 📎" : ""}</span><span class="note">${esc(jyName(x.who))}</span></li>`).join("")}</ul>`;
   }
-  d.addEventListener("input", () => { if (editing && isNew) prev(); });
+  d.addEventListener("input", e => {
+    if (!(editing && isNew)) return;
+    if (e.target.id === "j_name" && pick && e.target.value.trim() !== pick.name) pick = null;
+    if (e.target.id === "j_name" || e.target.name === "j_stage") sugg();
+    if (["j_name", "j_acct"].includes(e.target.id) || e.target.name === "j_stage") newEmpBox();
+    prev();
+  });
   const readB64 = f => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1]); fr.onerror = () => rej(new Error("讀取檔案失敗")); fr.readAsDataURL(f); });
   d.addEventListener("change", async e => {
     const up = e.target.closest("[data-jup]");
@@ -1148,6 +1255,14 @@ function jyDrawer(r) {
   d.addEventListener("click", async e => {
     if (e.target === d || e.target.closest("[data-x]")) return d.remove();
     if (e.target.closest("[data-go]")) { d.remove(); return; }
+    const pk = e.target.closest("[data-pick]");
+    if (pk) {
+      pick = JYE.rows.find(x => String(x.id) === pk.dataset.pick);
+      if (pick) { d.querySelector("#j_name").value = pick.name || ""; const a = jyAcct(pick.email); if (a) d.querySelector("#j_acct").value = a; if (pick.dept) d.querySelector("#j_dept").value = pick.dept; }
+      d.querySelector("#j_sug").innerHTML = ""; d.querySelector("#j_newemp").innerHTML = ""; newEmpBox(); prev(); return;
+    }
+    if (e.target.closest("[data-unpick]")) { pick = null; d.querySelector("#j_newemp").innerHTML = ""; newEmpBox(); return; }
+    if (e.target.closest("[data-astre]")) { ast = null; const b = d.querySelector("#j_ast"); if (b) b.innerHTML = astHtml(); await jyEmps(true); return loadAst(); }
     if (e.target.closest("[data-jedit]")) { editing = true; return paint(); }
     if (e.target.closest("[data-cancel]")) { editing = false; return paint(); }
     const sv = e.target.closest("[data-jsave]");
@@ -1156,8 +1271,18 @@ function jyDrawer(r) {
       const obj = {id: r ? r.id : undefined, stage: r ? r.stage : (d.querySelector("[name=j_stage]:checked") || {}).value, name: g("#j_name"), acct: g("#j_acct"), dept: g("#j_dept"), title: g("#j_title"), boss: g("#j_boss"), date: g("#j_date"), note: g("#j_note")};
       if (!obj.name.trim()) return toast("請填寫姓名");
       if (!obj.acct.trim()) return toast("請填寫公司 Email 帳號");
+      if (isNew && obj.stage === "離職" && JYE && JYE.ok && !pick && !jyFindEmp(obj)) return toast("離職請從設備資產名單選人（打姓名後點選），才能對到名下設備");
+      const addEmp = isNew && obj.stage === "到職" && !pick && d.querySelector("#j_addemp") && d.querySelector("#j_addemp").checked;
+      const empNo = addEmp ? d.querySelector("#j_empno").value.trim() : "";
+      if (addEmp && !empNo) return toast("請填寫員工編號，或取消勾選「同時新增到設備資產員工名單」");
+      if (addEmp && JYE.rows.some(x => String(x.emp_no) === empNo)) return toast("員工編號 " + empNo + " 已經有人用了");
       sv.disabled = true; sv.innerHTML = '<span class="spin"></span> 儲存中';
-      try { r = jyReplace(await PF.call("pf_apiJourneySave", [obj])); toast(isNew ? `已建立，共 ${r.items.length} 個項目` : "已儲存"); editing = false; paint(); }
+      try {
+        r = jyReplace(await PF.call("pf_apiJourneySave", [obj]));
+        let msg = isNew ? `已建立，共 ${r.items.length} 個項目` : "已儲存";
+        if (addEmp) { try { await jyAddEmp({emp_no: empNo, name: obj.name.trim(), dept: obj.dept.trim(), email: (obj.acct.trim().replace(/@.*$/, "") + "@swag.live").toLowerCase(), hire_date: obj.date}); msg += "，也加進設備資產員工名單了"; } catch (err) { msg += "。但加進設備資產失敗：" + err.message; } }
+        toast(msg); editing = false; ast = null; paint();
+      }
       catch (err) { toast(err.message); sv.disabled = false; sv.textContent = isNew ? "建立" : "儲存"; }
       return;
     }
