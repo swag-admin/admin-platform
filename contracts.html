@@ -846,6 +846,7 @@ function remindText(who,list){
   return `${first} 您好，以下 ${list.length} 件用印申請目前在您這邊簽核，再麻煩您有空時協助處理，謝謝！\n\n`
     +list.map((c,i)=>`${i+1}. ${c.formNo}｜${c.counterparty||"（未填對象）"}\n   ${c.note||""}\n   申請人：${c.applicant||"—"}（${md(c.applyDate)} 申請）`).join("\n\n");
 }
+function dmName(who){const w=String(who||"").toLowerCase().replace(/\s+/g," ");const hits=((settings&&settings.dmNames)||[]).filter(n=>w.includes(String(n).toLowerCase().replace(/\s+/g," ")));return hits.length===1?hits[0]:"";}
 function openRemind(){
   const groups={};
   const REMIND_EXCLUDE=["hr"];const isExcl=c=>REMIND_EXCLUDE.includes(String(c.dept||"").trim().toLowerCase());
@@ -859,13 +860,19 @@ function openRemind(){
         <div class="sect-title">等待 ${esc(w)}（${groups[w].length} 件）</div>
         <div class="rlist">${groups[w].map((c,i)=>`<label class="check"><input type="checkbox" data-g="${gi}" data-i="${i}" checked> <span><span class="num">${esc(c.formNo)}</span>　${esc(c.counterparty)}｜${esc(String(c.note||"").slice(0,36))}</span></label>`).join("")}</div>
         <textarea class="rtext" id="rt_${gi}" spellcheck="false"></textarea>
-        <div style="display:flex;justify-content:flex-end;margin-top:6px"><button class="btn primary" type="button" data-copy="${gi}">複製給 ${esc(w.replace(/[一-鿿]/g,"").trim()||w)}</button></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">${dmName(w)?`<button class="btn primary" type="button" data-dm="${gi}">Slack 私訊 ${esc(dmName(w))}</button><button class="btn" type="button" data-copy="${gi}">複製文字</button>`:`<button class="btn primary" type="button" data-copy="${gi}">複製給 ${esc(w.replace(/[一-鿿]/g,"").trim()||w)}</button>`}</div>
       </section>`).join(""):`<p class="empty">目前沒有簽核中的用印。</p>`}</div>
     <div class="dfoot"><button class="btn" type="button" data-close>關閉</button></div></div>`);
   const fill=gi=>{const w=names[gi];const picked=groups[w].filter((c,i)=>{const cb=document.querySelector(`input[data-g="${gi}"][data-i="${i}"]`);return cb&&cb.checked;});
     const ta=$("#rt_"+gi);ta.value=picked.length?remindText(w,picked):"";const b=document.querySelector(`[data-copy="${gi}"]`);if(b)b.disabled=!picked.length;};
   names.forEach((w,gi)=>fill(gi));
   $("#overlay").querySelectorAll("input[data-g]").forEach(cb=>cb.addEventListener("change",()=>fill(Number(cb.dataset.g))));
+  $("#overlay").querySelectorAll("[data-dm]").forEach(b=>b.addEventListener("click",async()=>{
+    const gi=Number(b.dataset.dm),ta=$("#rt_"+gi);if(!ta.value.trim())return;
+    const old=b.textContent;b.disabled=true;b.textContent="傳送中…";
+    try{const msg=await run("apiRemindDm",names[gi],ta.value);toast(msg);b.textContent="✓ 已私訊";}
+    catch(e){toast("沒有送出："+(e&&e.message||e));b.disabled=false;b.textContent=old;}
+  }));
   $("#overlay").querySelectorAll("[data-copy]").forEach(b=>b.addEventListener("click",async()=>{
     const ta=$("#rt_"+b.dataset.copy);
     try{await navigator.clipboard.writeText(ta.value);toast("已複製，可以貼到 Slack 或 Email");}

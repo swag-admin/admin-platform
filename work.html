@@ -173,6 +173,7 @@ table.hrt{border-collapse:collapse;width:100%;min-width:560px}
 table.list{border-collapse:collapse;width:100%;min-width:680px}
 .list th,.list td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;font-size:13px}
 .list th{color:var(--muted);font-weight:500;font-size:12px;background:var(--sunken)}
+.vd-row td{vertical-align:top}.vd-row.ed{cursor:pointer}.vd-row.ed:hover td{background:var(--sunken)}.vd-sub{color:var(--muted);font-size:12px;margin-top:2px;white-space:pre-line}.vd-tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.vd-tools input,.vd-tools select{min-width:200px}
 .list tr.click{cursor:pointer}
 .list tr.click:hover td{background:var(--sunken)}
 .types{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
@@ -353,6 +354,7 @@ table.xt{border-collapse:collapse;width:100%;min-width:900px}
     <button role="tab" data-tab="tasks" aria-selected="false">工作分配</button>
     <button role="tab" data-tab="schedule" aria-selected="false">PT 排班</button>
     <button role="tab" data-tab="sop" aria-selected="false">SOP</button>
+    <button role="tab" data-tab="vendors" aria-selected="false">廠商資訊</button>
     <button role="tab" data-tab="settings" aria-selected="false">設定</button>
   </nav>
 </div></header>
@@ -364,6 +366,7 @@ table.xt{border-collapse:collapse;width:100%;min-width:900px}
   <section id="v-tasks" hidden></section>
   <section id="v-schedule" hidden></section>
   <section id="v-sop" hidden></section>
+  <section id="v-vendors" hidden></section>
   <section id="v-settings" hidden></section>
 </main>
 <div id="modal"></div>

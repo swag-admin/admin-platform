@@ -56,7 +56,18 @@ h2{font-size:20px;margin:0;letter-spacing:.2px}
 .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--mc,var(--accent))}
 .card h3{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
 .card h3 .go{margin-left:auto;font-size:12.5px;color:var(--mc,var(--accent));border:0;background:none;font-weight:600}
-.m-legal{--mc:var(--rose)}.m-doc{--mc:#0e7490}.k-doc{--mcs:#e0f2f7}
+.m-legal{--mc:var(--rose)}
+.info-wrap{display:grid;grid-template-columns:240px minmax(0,1fr);gap:20px;align-items:start}
+.info-side{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px;box-shadow:var(--shadow);position:sticky;top:calc(var(--hd) + 16px)}
+.info-side h4{font-size:12px;color:var(--muted);margin:10px 8px 4px;font-weight:600}
+.info-side button.pg{display:flex;width:100%;text-align:left;border:0;background:none;padding:7px 10px;border-radius:8px;gap:6px;align-items:center}
+.info-side button.pg:hover{background:var(--sunken)}.info-side button.pg[aria-current=true]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.info-main{min-width:0}
+.info-frame{width:100%;height:calc(100vh - var(--hd) - 150px);min-height:480px;border:1px solid var(--line);border-radius:var(--r);background:#fff}
+.info-main.full .info-frame{position:fixed;inset:var(--hd) 0 0 0;height:auto;z-index:25;border-radius:0}
+.md{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px 24px;box-shadow:var(--shadow);line-height:1.8}
+.md h3{font-size:18px;margin:14px 0 6px}.md h4{font-size:15px;margin:12px 0 4px}.md ul{margin:4px 0;padding-left:22px}.md p{margin:6px 0}
+@media (max-width:820px){.info-wrap{grid-template-columns:1fr}.info-side{position:static}}.m-doc{--mc:#0e7490}.k-doc{--mcs:#e0f2f7}
 li.click{cursor:pointer;border-radius:6px}li.click:hover .t{color:var(--accent)}
 .people{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
 .person{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px}
@@ -186,17 +197,19 @@ const MODULES = [
   {id: "work", name: p => isFT(p) ? "工作台" : "我的工作", show: p => p.work !== "—"},
   {id: "pt", name: "PT 排班", show: p => p.work !== "—"},
   {id: "sop", name: "SOP", show: p => p.work !== "—"},
+  {id: "vendors", name: "廠商資訊", show: p => p.work !== "—"},
   {id: "contracts", name: "合約庫", show: p => p.contracts !== "—"},
   {id: "docs", name: "函文", show: p => p.docs !== "—"},
   {id: "legal", name: "法務期限", show: p => p.legal !== "—"},
+  {id: "info", name: "行政資料", show: p => p.isAdmin || (ME && ME.info > 0)},
   {id: "assets", name: "設備資產", show: p => p.assets !== "—"},
   {id: "settings", name: "設定", show: p => p.isAdmin || isFT(p)},
   {id: "worksettings", hidden: true, parent: "settings", show: p => isFT(p)}
 ];
 const allowed = id => { const m = MODULES.find(x => x.id === id); return !!(m && ME && m.show(ME.perm)); };
 /* 工作台（同一個 iframe）裡各分頁對應的平台選單 */
-const WORK_TAB = {work: "tasks", pt: "schedule", sop: "sop", worksettings: "settings"};
-const TAB_VIEW = {tasks: "work", schedule: "pt", sop: "sop", settings: "worksettings", overview: "work"};
+const WORK_TAB = {work: "tasks", pt: "schedule", sop: "sop", vendors: "vendors", worksettings: "settings"};
+const TAB_VIEW = {tasks: "work", schedule: "pt", sop: "sop", vendors: "vendors", settings: "worksettings", overview: "work"};
 
 /* ================= 登入 ================= */
 function showLogin(msg) {
@@ -280,7 +293,7 @@ function route() {
   if (isFrame) return showFrame(id);
   const sec = document.createElement("section");
   main.appendChild(sec);
-  ({home: renderHome, legal: renderLegal, docs: renderDocs, settings: renderSettings})[id](sec);
+  ({home: renderHome, legal: renderLegal, docs: renderDocs, info: renderInfo, settings: renderSettings})[id](sec);
 }
 
 function showFrame(id) {
@@ -589,6 +602,16 @@ async function renderDocs(sec) {
   if (docOpen) { const r = DC.rows.find(x => x.id === docOpen); docOpen = ""; if (r) docDrawer(r); }
 }
 const docReplies = r => DC.rows.filter(x => x.replyTo === r.id).sort((a, b) => String(a.no).localeCompare(String(b.no)));
+const shortCo = c => String(c || "").replace(/(股份)?有限公司$/, "").replace(/[,\s]*(Co\.?,?\s*)?(Limited|Ltd\.?|Inc\.?|Corp\.?)$/i, "").trim();
+/** 跟後端同一套命名：日期+收文/發文_公司簡稱-單位_字號 */
+function docFileName(v, orig, n) {
+  const m = String(orig || "").match(/\.([A-Za-z0-9]{1,6})$/), ext = m ? "." + m[1].toLowerCase() : "";
+  const clean = x => String(x || "").replace(/[\\/:*?"<>|\r\n\t]+/g, " ").replace(/\s+/g, " ").trim();
+  const who = [clean(shortCo(v.company)), clean(v.party)].filter(Boolean).join("-");
+  let base = [String(v.date || "").replace(/-/g, "") + (v.dir || ""), who, clean(v.refNo)].filter(Boolean).join("_").slice(0, 150);
+  if (!base) base = clean(String(orig || "附件").replace(/\.[^.]*$/, "")) || "附件";
+  return base + (n > 0 ? "_" + (n + 1) : "") + ext;
+}
 const rocDate = d => { if (!d) return ""; const [y, m, dd] = d.split("-").map(Number); return `${y - 1911}年${m}月${dd}日`; };
 const dcName = e => { if (!e) return "未指定"; const p = (DC.people || []).find(x => x.email === e); return p ? p.name : e.split("@")[0]; };
 function docTable() {
@@ -601,17 +624,17 @@ function docTable() {
     if (!["open", "due", "all"].includes(dcFilter.status) && r.status !== dcFilter.status) return false;
     if (dcFilter.cat && r.category !== dcFilter.cat) return false;
     if (dcFilter.owner === "me" && r.owner !== DC.me) return false;
-    if (q && !(r.no + " " + r.subject + " " + r.party + " " + r.refNo + " " + r.note).toLowerCase().includes(q)) return false;
+    if (q && !(r.no + " " + r.subject + " " + r.party + " " + r.refNo + " " + r.note + " " + (r.company || "")).toLowerCase().includes(q)) return false;
     return true;
   }).sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.no).localeCompare(String(a.no)));
   $("#dcCount").textContent = `${rows.length} 筆`;
   if (!rows.length) { $("#dcBody").innerHTML = `<div class="tablewrap"><div class="empty">${DC.rows.length ? "沒有符合條件的函文" : (DC.canEdit ? "還沒有任何函文。收到公文、存證信函、律師函時按「收文登記」，寄出時按「發文登記」，掃描檔可以直接上傳。" : "目前沒有函文")}</div></div>`; return; }
-  $("#dcBody").innerHTML = `<div class="tablewrap"><table style="min-width:980px"><thead><tr><th>編號</th><th>日期</th><th>來文／受文單位</th><th>主旨</th><th>類別</th><th>承辦</th><th>回覆期限</th><th>狀態</th></tr></thead><tbody>${rows.map(r => {
+  $("#dcBody").innerHTML = `<div class="tablewrap"><table style="min-width:980px"><thead><tr><th>編號</th><th>日期</th><th>公司／來文／受文單位</th><th>主旨</th><th>類別</th><th>承辦</th><th>回覆期限</th><th>狀態</th></tr></thead><tbody>${rows.map(r => {
     const closed = DC.closed.includes(r.status);
     return `<tr class="click${closed ? " done" : ""}" data-dc="${esc(r.id)}">
       <td class="mono" style="white-space:nowrap"><span class="chip ${r.dir === "發文" ? "violet" : "teal"}">${esc(r.dir)}</span> ${esc(r.no)}</td>
       <td style="white-space:nowrap">${showDate(r.date)}</td>
-      <td>${esc(r.party || "—")}</td>
+      <td>${r.company ? `<div class="note">${esc(shortCo(r.company))}</div>` : ""}${esc(r.party || "—")}</td>
       <td><b class="ttl">${esc(r.subject)}</b>${r.refNo ? `<div class="note">${r.dir === "發文" ? "發文字號" : "來文字號"} ${esc(r.refNo)}</div>` : ""}${(r.files || []).length ? ` <span class="note">📎${r.files.length}</span>` : ""}${docReplies(r).map(x => ` <span class="chip violet">↩ 回文 ${esc(x.no)}</span>`).join("")}${r.replyTo ? ` <span class="chip teal">回覆 ${esc((DC.rows.find(x => x.id === r.replyTo) || {}).no || "")}</span>` : ""}</td>
       <td><span class="chip">${esc(r.category || "其他")}</span></td>
       <td style="white-space:nowrap">${esc(dcName(r.owner))}</td>
@@ -623,8 +646,8 @@ function docTable() {
 function docDrawer(r, dir, replyOf) {
   let isNew = !r;
   const full = DC.canEdit, mine = r && r.owner === DC.me, touch = full || mine;
-  r = r || (replyOf ? {dir: "發文", replyTo: replyOf.id, date: today(), party: replyOf.party, refNo: "", subject: "函復：" + replyOf.subject, category: replyOf.category, owner: replyOf.owner || DC.me, replyBy: "", remind: DC.days, status: "已結案", note: `復 ${replyOf.party || "貴單位"}${replyOf.date ? " " + rocDate(replyOf.date) : ""}${replyOf.refNo ? " " + replyOf.refNo : ""}函`, link: "", files: [], log: []}
-    : {dir, date: today(), party: "", refNo: "", subject: "", category: DC.cats[0], owner: DC.me, replyBy: "", remind: DC.days, status: "待處理", note: "", link: "", files: [], log: []});
+  r = r || (replyOf ? {dir: "發文", replyTo: replyOf.id, date: today(), party: replyOf.party, refNo: "", subject: "函復：" + replyOf.subject, category: replyOf.category, company: replyOf.company || "", owner: replyOf.owner || DC.me, replyBy: "", remind: DC.days, status: "已結案", note: `復 ${replyOf.party || "貴單位"}${replyOf.date ? " " + rocDate(replyOf.date) : ""}${replyOf.refNo ? " " + replyOf.refNo : ""}函`, link: "", files: [], log: []}
+    : {dir, date: today(), company: (DC.rows.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0] || {}).company || (DC.companies || [])[0] || "", party: "", refNo: "", subject: "", category: DC.cats[0], owner: DC.me, replyBy: "", remind: DC.days, status: "待處理", note: "", link: "", files: [], log: []});
   const canReply = r.dir === "收文" && (full || mine);
   let dis = (full || (isNew && replyOf)) ? "" : "disabled";
   const ppl = (DC.people || []).slice();
@@ -639,13 +662,14 @@ function docDrawer(r, dir, replyOf) {
     ${!isNew && r.dir === "收文" ? `<div class="banner ${docReplies(r).length ? "" : "warn"}" style="margin:0;display:flex;gap:10px;align-items:center;flex-wrap:wrap">${docReplies(r).length ? "回文：" + docReplies(r).map(x => `<button class="btn link" data-goto="${esc(x.id)}">${esc(x.no)}</button><span class="note">${showDate(x.date)}</span>`).join("、") : "還沒有登記回文"}<span class="sp" style="flex:1"></span>${canReply ? '<button class="btn small primary" data-reply>↩ 登記回文</button>' : ""}</div>` : ""}
     <label class="fld">主旨<input id="g_subject" value="${esc(r.subject)}" ${dis} placeholder="${out ? "例如：函覆○○局 115 年度勞動檢查改善情形" : "例如：臺北市政府勞動局 勞動檢查結果通知"}"></label>
     <div class="row2">
+      <label class="fld">公司（我方）<input id="g_co" list="g_colist" value="${esc(r.company || "")}" ${dis} placeholder="例如：鈔快數位股份有限公司"><datalist id="g_colist">${(DC.companies || []).map(c => `<option value="${esc(c)}">`).join("")}</datalist></label>
+      <label class="fld">類別<select id="g_cat" ${dis}>${DC.cats.map(c => `<option${c === r.category ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
+    </div>
+    <div class="row2">
       <label class="fld">${out ? "發文日期" : "收文日期"}<input id="g_date" type="date" value="${esc(r.date)}" ${dis}></label>
       <label class="fld">${out ? "發文字號" : "來文字號"}<input id="g_ref" value="${esc(r.refNo)}" ${dis} placeholder="${out ? "例如：鈔快字第 1150001 號" : "例如：北市勞檢字第 1150000000 號"}"></label>
     </div>
-    <div class="row2">
-      <label class="fld">${out ? "受文者（寄給誰）" : "來文單位（誰寄來的）"}<input id="g_party" value="${esc(r.party)}" ${dis} placeholder="${out ? "例如：○○律師事務所" : "例如：臺北市政府勞動局"}"></label>
-      <label class="fld">類別<select id="g_cat" ${dis}>${DC.cats.map(c => `<option${c === r.category ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
-    </div>
+    <label class="fld">${out ? "受文者（寄給誰）" : "來文單位（誰寄來的）"}<input id="g_party" value="${esc(r.party)}" ${dis} placeholder="${out ? "例如：○○律師事務所" : "例如：臺北市政府警察局士林分局"}"></label>
     <div class="row2">
       <label class="fld">承辦人（收提醒信）<select id="g_owner" ${dis}><option value="">未指定（寄給行政主管）</option>${ppl.map(p => `<option value="${esc(p.email)}"${p.email === r.owner ? " selected" : ""}>${esc(p.name)}｜${esc(p.email)}</option>`).join("")}</select></label>
       <label class="fld">狀態<select id="g_status" ${touch ? "" : "disabled"}>${DC.statuses.map(x => `<option${x === r.status ? " selected" : ""}>${esc(x)}</option>`).join("")}</select></label>
@@ -657,8 +681,8 @@ function docDrawer(r, dir, replyOf) {
     <label class="fld">備註<textarea id="g_note" ${touch ? "" : "disabled"} placeholder="重點、要準備的資料、聯絡窗口…">${esc(r.note)}</textarea></label>
     <label class="fld">相關連結（選填）<input id="g_link" type="url" value="${esc(r.link)}" ${dis} placeholder="https://"></label>
     ${r.link ? `<a class="note" href="${esc(r.link)}" target="_blank" rel="noopener">開啟連結 ↗</a>` : ""}
-    <div><div class="note" style="margin-bottom:6px">附件（掃描檔、PDF，每個 20MB 以內；上傳後自動命名為「編號_日期_字號_單位_主旨」，可以再按「改檔名」修改）</div>
-      ${isNew ? '<div class="note">登記後就可以上傳附件。</div>' : `<ul class="plain" id="g_files">${(r.files || []).map(f => `<li data-fid="${esc(f.id)}"><span class="t"><button class="btn link" data-fopen="${esc(f.id)}">📄 ${esc(f.name)}</button> <span class="note">${fmtSize(f.size || 0)}・${esc(dcName(f.by))} ${fmtAt(f.at)}</span></span><span style="white-space:nowrap">${touch ? `<button class="btn small" data-fren="${esc(f.id)}">改檔名</button> <button class="btn small danger" data-fdel="${esc(f.id)}">刪除</button>` : ""}</span></li>`).join("") || '<li class="note">還沒有附件</li>'}</ul>
+    <div><div class="note" style="margin-bottom:6px">附件（掃描檔、PDF，每個 20MB 以內；會自動命名為「日期收發文_公司-單位_字號」，可以再按「改檔名」修改）</div>
+      ${isNew ? `<ul class="plain" id="g_pend"></ul><label class="btn small" style="display:inline-block;margin-top:6px;cursor:pointer">📎 選擇檔案<input type="file" id="g_pick" multiple hidden></label> <span class="note">按「登記」時一起上傳</span>` : `<ul class="plain" id="g_files">${(r.files || []).map(f => `<li data-fid="${esc(f.id)}"><span class="t"><button class="btn link" data-fopen="${esc(f.id)}">📄 ${esc(f.name)}</button> <span class="note">${fmtSize(f.size || 0)}・${esc(dcName(f.by))} ${fmtAt(f.at)}</span></span><span style="white-space:nowrap">${touch ? `<button class="btn small" data-fren="${esc(f.id)}">改檔名</button> <button class="btn small danger" data-fdel="${esc(f.id)}">刪除</button>` : ""}</span></li>`).join("") || '<li class="note">還沒有附件</li>'}</ul>
       ${touch ? '<label class="btn small" style="display:inline-block;margin-top:8px;cursor:pointer">📎 上傳附件<input type="file" id="g_up" multiple hidden></label> <span class="note" id="g_upmsg"></span>' : ""}`}</div>
     ${isNew ? "" : `<div><div class="note" style="margin-bottom:6px">處理紀錄</div>
       <ul class="timeline">${(r.log || []).map(l => `<li class="${l.sys ? "" : "past"}"><b>${esc(dcName(l.by))}</b> <span class="note">${fmtAt(l.at)}</span><div${l.sys ? ' class="note"' : ""}>${esc(l.text)}</div></li>`).join("") || '<li class="note">還沒有紀錄</li>'}</ul>
@@ -668,7 +692,23 @@ function docDrawer(r, dir, replyOf) {
   </div>`;
     const up = d.querySelector("#g_up");
     if (up) up.onchange = () => upload([...up.files]);
+    const pk = d.querySelector("#g_pick");
+    if (pk) { pk.onchange = () => { pending.push(...[...pk.files].filter(f => f.size <= 20 * 1048576 || (toast(`${f.name} 超過 20MB`), false))); pk.value = ""; drawPending(); }; drawPending(); }
   };
+  let pending = [];
+  const curVals = () => { const g = id => { const x = d.querySelector(id); return x ? x.value : ""; }; return {date: g("#g_date"), dir: r.dir, company: g("#g_co"), party: g("#g_party"), refNo: g("#g_ref")}; };
+  function drawPending() {
+    const ul = d.querySelector("#g_pend"); if (!ul) return;
+    const v = curVals();
+    ul.innerHTML = pending.map((f, i) => `<li><span class="t">📄 ${esc(docFileName(v, f.name, i))} <span class="note">${fmtSize(f.size)}・原檔 ${esc(f.name)}</span></span><button class="btn small danger" data-pdel="${i}">移除</button></li>`).join("");
+  }
+  d.addEventListener("input", () => { if (pending.length) drawPending(); });
+  /** 重畫前把還沒存的欄位內容留住 */
+  function keep() {
+    const g = id => { const x = d.querySelector(id); return x && !x.disabled ? x.value : null; };
+    const map = {subject: "#g_subject", date: "#g_date", category: "#g_cat", company: "#g_co", party: "#g_party", refNo: "#g_ref", owner: "#g_owner", status: "#g_status", replyBy: "#g_reply", remind: "#g_remind", note: "#g_note", link: "#g_link"};
+    const o = {}; Object.keys(map).forEach(k => { const v = g(map[k]); if (v !== null) o[k] = v; }); return o;
+  }
   const replace = saved => { const i = DC.rows.findIndex(x => x.id === saved.id); if (i >= 0) DC.rows[i] = saved; else DC.rows.push(saved); r = saved; docTable(); };
   const readB64 = f => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1]); fr.onerror = () => rej(new Error("讀取檔案失敗")); fr.readAsDataURL(f); });
   async function upload(files) {
@@ -676,7 +716,8 @@ function docDrawer(r, dir, replyOf) {
     for (const f of files) {
       if (f.size > 20 * 1048576) { toast(`${f.name} 超過 20MB`); continue; }
       if (msg) msg.innerHTML = `<span class="spin"></span> 上傳 ${esc(f.name)}…`;
-      try { replace(await PF.call("pf_apiDocAttach", [r.id, {name: f.name, mime: f.type, b64: await readB64(f)}])); }
+      const draft = keep();
+      try { replace(await PF.call("pf_apiDocAttach", [r.id, {name: f.name, mime: f.type, b64: await readB64(f)}])); Object.assign(r, draft); }
       catch (e) { toast(e.message); }
     }
     paint();
@@ -688,6 +729,8 @@ function docDrawer(r, dir, replyOf) {
     const gt = e.target.closest("[data-goto]");
     if (gt) { const o = DC.rows.find(x => x.id === gt.dataset.goto); if (o) { d.remove(); docDrawer(o); } return; }
     if (e.target.closest("[data-reply]")) { const o = r; d.remove(); docDrawer(null, "發文", o); return; }
+    const pd = e.target.closest("[data-pdel]");
+    if (pd) { pending.splice(+pd.dataset.pdel, 1); drawPending(); return; }
     const fo = e.target.closest("[data-fopen]");
     if (fo) {
       const w = window.open("", "_blank");
@@ -742,18 +785,162 @@ function docDrawer(r, dir, replyOf) {
     if (e.target.closest("[data-save]")) {
       const b = e.target.closest("[data-save]");
       const v = id => d.querySelector(id).value;
-      const obj = {id: r.id, dir: r.dir, replyTo: isNew ? r.replyTo || "" : undefined, subject: v("#g_subject"), date: v("#g_date"), category: v("#g_cat"), party: v("#g_party"), refNo: v("#g_ref"), owner: v("#g_owner"), status: v("#g_status"), replyBy: v("#g_reply"), remind: v("#g_remind"), note: v("#g_note"), link: v("#g_link").trim()};
+      const obj = {id: r.id, dir: r.dir, replyTo: isNew ? r.replyTo || "" : undefined, subject: v("#g_subject"), date: v("#g_date"), category: v("#g_cat"), company: v("#g_co").trim(), party: v("#g_party"), refNo: v("#g_ref"), owner: v("#g_owner"), status: v("#g_status"), replyBy: v("#g_reply"), remind: v("#g_remind"), note: v("#g_note"), link: v("#g_link").trim()};
       if (!dis && !obj.subject.trim()) return toast("請填寫主旨");
       if (!dis && !obj.date) return toast("請填寫日期");
       b.disabled = true; b.innerHTML = '<span class="spin"></span> 儲存中';
       try {
         const saved = await PF.call("pf_apiDocSave", [obj]); replace(saved);
         if (isNew && saved.replyTo) { try { DC = Object.assign(DC, await PF.call("pf_apiDocs")); docTable(); } catch (_) {} }
-        toast(isNew ? (saved.replyTo ? `已登記回文 ${saved.no}，來文已改成「已回覆」，可以上傳回文檔案了` : `已登記，編號 ${saved.no}，可以上傳附件了`) : "已儲存");
-        if (isNew) { isNew = false; replyOf = null; dis = full ? "" : "disabled"; paint(); } else d.remove();
+        toast(isNew ? (saved.replyTo ? `已登記回文 ${saved.no}，來文已改成「已回覆」` : `已登記，編號 ${saved.no}`) + (pending.length ? `，正在上傳 ${pending.length} 個檔案…` : "") : "已儲存");
+        if (isNew) { isNew = false; replyOf = null; dis = full ? "" : "disabled"; paint(); if (pending.length) { const list = pending; pending = []; await upload(list); toast("已登記並上傳附件"); } } else d.remove();
       }
       catch (err) { toast(err.message); b.disabled = false; b.textContent = isNew ? "登記" : "儲存"; }
     }
+  });
+}
+
+/* ================= 行政資料 ================= */
+let IF = null, infoSel = "";
+try { infoSel = localStorage.getItem("pf_info_sel") || ""; } catch (e) {}
+const INFO_TYPES = {html: "Claude 做的網頁（.html）", link: "連結", text: "文字頁"};
+const ACCESS_LBL = {admin: "只有平台管理員", ft: "所有正職", all: "所有能登入平台的人", list: "指定的人"};
+function mdHtml(t) {
+  const inline = x => esc(x).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  let out = "", inList = false;
+  String(t || "").split("\n").forEach(l => {
+    const li = l.match(/^\s*[-*]\s+(.*)/);
+    if (li) { if (!inList) { out += "<ul>"; inList = true; } out += `<li>${inline(li[1])}</li>`; return; }
+    if (inList) { out += "</ul>"; inList = false; }
+    if (/^##\s+/.test(l)) out += `<h4>${inline(l.replace(/^##\s+/, ""))}</h4>`;
+    else if (/^#\s+/.test(l)) out += `<h3>${inline(l.replace(/^#\s+/, ""))}</h3>`;
+    else if (l.trim()) out += `<p>${inline(l)}</p>`;
+  });
+  return out + (inList ? "</ul>" : "");
+}
+async function renderInfo(sec) {
+  sec.innerHTML = `<div class="toolbar"><h2>行政資料</h2><span class="sp"></span><button class="btn primary" id="ifAdd" hidden>＋ 新增頁面</button></div><div id="ifBody"><div class="empty"><span class="spin"></span> 載入中…</div></div>`;
+  try { IF = await PF.call("pf_apiInfoList"); } catch (e) { $("#ifBody").innerHTML = `<div class="banner err">${esc(e.message)}</div>`; return; }
+  if (view !== "info") return;
+  $("#ifAdd").hidden = !IF.canEdit;
+  $("#ifAdd").onclick = () => infoEdit(null);
+  infoDraw();
+}
+function infoDraw() {
+  const rows = IF.rows;
+  if (!rows.length) { $("#ifBody").innerHTML = `<div class="tablewrap"><div class="empty">${IF.canEdit ? "還沒有任何頁面。按右上角「新增頁面」，可以上傳 Claude 做的網頁（.html）、放連結，或直接寫一頁文字。<br>每一頁都可以設定誰能看，例如老闆資料只開給平台管理員。" : "目前沒有開放給你的頁面"}</div></div>`; return; }
+  if (!rows.some(r => r.id === infoSel)) infoSel = rows[0].id;
+  const cats = [...new Set(rows.map(r => r.category || "其他"))];
+  const r = rows.find(x => x.id === infoSel);
+  const icon = t => t === "html" ? "🖥️" : t === "link" ? "🔗" : "📝";
+  $("#ifBody").innerHTML = `<div class="info-wrap">
+    <aside class="info-side">${cats.map(c => `<h4>${esc(c)}</h4>${rows.filter(x => (x.category || "其他") === c).map(x => `<button class="pg" data-pg="${esc(x.id)}" aria-current="${x.id === infoSel}">${icon(x.type)} <span style="flex:1">${esc(x.title)}</span>${IF.canEdit && x.access && x.access.mode !== "all" ? `<span class="note" title="${esc(ACCESS_LBL[x.access.mode])}">🔒</span>` : ""}</button>`).join("")}`).join("")}</aside>
+    <div class="info-main" id="ifMain"></div></div>`;
+  $("#ifBody").onclick = e => { const b = e.target.closest("[data-pg]"); if (b) { infoSel = b.dataset.pg; try { localStorage.setItem("pf_info_sel", infoSel); } catch (_) {} infoDraw(); } };
+  infoShow(r);
+}
+async function infoShow(r) {
+  const m = $("#ifMain");
+  const acc = IF.canEdit && r.access ? `<span class="chip ${r.access.mode === "admin" ? "red" : r.access.mode === "list" ? "amber" : "teal"}">🔒 ${esc(ACCESS_LBL[r.access.mode])}${r.access.mode === "list" ? "：" + esc((r.access.emails || []).map(e => (IF.people.find(p => p.email === e) || {}).name || e.split("@")[0]).join("、")) : ""}</span>` : "";
+  const files = (r.files || []).length || IF.canEdit ? `<div class="card" style="margin-top:14px"><h3>📎 附件</h3>${(r.files || []).length ? `<ul class="plain">${r.files.map(f => `<li><span class="t"><button class="btn link" data-iopen="${esc(f.id)}">📄 ${esc(f.name)}</button> <span class="note">${fmtSize(f.size || 0)}</span></span>${IF.canEdit ? `<button class="btn small danger" data-idel="${esc(f.id)}">刪除</button>` : ""}</li>`).join("")}</ul>` : '<div class="note">沒有附件</div>'}${IF.canEdit ? '<label class="btn small" style="display:inline-block;margin-top:8px;cursor:pointer">📎 上傳附件<input type="file" id="if_up" multiple hidden></label> <span class="note" id="if_msg"></span>' : ""}</div>` : "";
+  m.innerHTML = `<div class="toolbar" style="margin-bottom:12px"><h2 style="font-size:18px">${esc(r.title)}</h2>${acc}<span class="sp"></span>${r.type === "html" ? '<button class="btn small" data-full>⛶ 放大</button>' : ""}${IF.canEdit ? '<button class="btn small" data-mv="-1" title="往上移">↑</button><button class="btn small" data-mv="1" title="往下移">↓</button><button class="btn small" data-edit>編輯</button>' : ""}</div>
+    ${r.type === "html" ? `<iframe class="info-frame" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals allow-downloads" title="${esc(r.title)}"></iframe>${r.body ? `<div class="md" style="margin-top:14px">${mdHtml(r.body)}</div>` : ""}`
+      : r.type === "link" ? `<div class="card"><h3>🔗 ${esc(r.title)}</h3><p class="note" style="word-break:break-all">${esc(r.url)}</p><a class="btn primary" href="${esc(r.url)}" target="_blank" rel="noopener">開啟 ↗</a>${r.body ? `<div style="margin-top:14px">${mdHtml(r.body)}</div>` : ""}</div>`
+      : `<div class="md">${mdHtml(r.body) || '<p class="note">這一頁還沒有內容</p>'}</div>`}
+    ${files}
+    <div class="note" style="margin-top:10px">最後更新 ${esc((r.updatedAt || "").slice(0, 10))}</div>`;
+  if (r.type === "html") {
+    const f = m.querySelector("iframe");
+    f.srcdoc = '<p style="font:14px sans-serif;color:#888;padding:20px">載入中…</p>';
+    try { const html = await PF.call("pf_apiInfoHtml", [r.id]); if (infoSel === r.id) f.srcdoc = STORAGE_SHIM + html; } catch (e) { f.srcdoc = `<p style="font:14px sans-serif;color:#c0392b;padding:20px">${esc(e.message)}</p>`; }
+  }
+  const up = m.querySelector("#if_up");
+  if (up) up.onchange = async () => {
+    const msg = m.querySelector("#if_msg");
+    for (const f of [...up.files]) {
+      if (f.size > 20 * 1048576) { toast(`${f.name} 超過 20MB`); continue; }
+      msg.innerHTML = `<span class="spin"></span> 上傳 ${esc(f.name)}…`;
+      try { const saved = await PF.call("pf_apiInfoAttach", [r.id, {name: f.name, mime: f.type, b64: await fileB64(f)}]); Object.assign(r, saved); } catch (e) { toast(e.message); }
+    }
+    infoShow(r);
+  };
+  m.onclick = async e => {
+    if (e.target.closest("[data-full]")) { m.classList.toggle("full"); e.target.closest("[data-full]").textContent = m.classList.contains("full") ? "✕ 縮小" : "⛶ 放大"; return; }
+    if (e.target.closest("[data-edit]")) return infoEdit(r);
+    const mv = e.target.closest("[data-mv]");
+    if (mv) { try { IF = await PF.call("pf_apiInfoMove", [r.id, +mv.dataset.mv]); infoDraw(); } catch (err) { toast(err.message); } return; }
+    const io = e.target.closest("[data-iopen]");
+    if (io) return openB64(() => PF.call("pf_apiInfoFile", [r.id, io.dataset.iopen]));
+    const idl = e.target.closest("[data-idel]");
+    if (idl) {
+      if (idl.dataset.sure !== "1") { idl.dataset.sure = "1"; idl.textContent = "確定刪除？"; return; }
+      try { Object.assign(r, await PF.call("pf_apiInfoDetach", [r.id, idl.dataset.idel])); infoShow(r); } catch (err) { toast(err.message); }
+    }
+  };
+}
+/* 網頁在隔離框架裡不能用瀏覽器儲存空間，先換成暫存版，避免 Claude 做的網頁出錯（關掉就清空） */
+const STORAGE_SHIM = `<script>(function(){function M(){var d={};return{getItem:function(k){return k in d?d[k]:null},setItem:function(k,v){d[k]=String(v)},removeItem:function(k){delete d[k]},clear:function(){d={}},key:function(i){return Object.keys(d)[i]||null},get length(){return Object.keys(d).length}}}["localStorage","sessionStorage"].forEach(function(n){try{window[n].length}catch(e){try{Object.defineProperty(window,n,{value:M(),configurable:true})}catch(_){}}})})();<\/script>`;
+const fileB64 = f => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1]); fr.onerror = () => rej(new Error("讀取檔案失敗")); fr.readAsDataURL(f); });
+async function openB64(get) {
+  const w = window.open("", "_blank");
+  if (w) w.document.write('<p style="font:15px sans-serif;padding:30px;color:#555">檔案載入中…</p>');
+  try {
+    const f = await get(), bin = atob(f.b64), u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([u8], {type: f.mime || "application/octet-stream"}));
+    if (w) w.location.href = url; else window.open(url, "_blank");
+  } catch (err) { if (w) w.close(); toast(err.message); }
+}
+function infoEdit(r) {
+  const isNew = !r;
+  r = r || {title: "", category: "", type: "html", url: "", body: "", access: {mode: "admin", emails: []}};
+  const cats = [...new Set(["公司基本資料", "老闆資料", "辦公室", ...IF.rows.map(x => x.category).filter(Boolean)])];
+  const acc = r.access || {mode: "admin", emails: []};
+  const d = document.createElement("div"); d.className = "drawer";
+  d.innerHTML = `<div class="panel" role="dialog" aria-label="編輯頁面">
+    <div class="hdr"><h2>${isNew ? "新增頁面" : "編輯頁面"}</h2><button class="btn small" data-x>關閉</button></div>
+    <label class="fld">頁面名稱<input id="i_title" value="${esc(r.title)}" placeholder="例如：公司基本資料、新辦公室裝修紀錄"></label>
+    <label class="fld">分類（左側選單的分組）<input id="i_cat" list="i_cats" value="${esc(r.category)}" placeholder="例如：公司基本資料"><datalist id="i_cats">${cats.map(c => `<option value="${esc(c)}">`).join("")}</datalist></label>
+    <div class="fld">內容類型<div style="display:flex;gap:14px;flex-wrap:wrap;color:var(--fg)">${Object.keys(INFO_TYPES).map(k => `<label class="check"><input type="radio" name="i_type" value="${k}" ${r.type === k ? "checked" : ""}> ${INFO_TYPES[k]}</label>`).join("")}</div></div>
+    <div id="i_html"><label class="fld">網頁檔（.html）<input type="file" id="i_file" accept=".html,.htm,text/html"></label><div class="note">${r.fileName ? "目前的檔案：" + esc(r.fileName) + "（選新檔案會取代）" : "Claude 做好的網頁存成 .html 檔後上傳，會直接顯示在平台裡。"}</div></div>
+    <label class="fld" id="i_urlw">連結網址<input id="i_url" type="url" value="${esc(r.url)}" placeholder="https://（Claude Artifact、Google 文件、Notion…）"></label>
+    <label class="fld"><span id="i_bodyl">內容</span><textarea id="i_body" style="min-height:220px" placeholder="可以用簡單格式：「# 標題」「## 小標題」「- 項目」「**粗體**」，網址會自動變成連結">${esc(r.body)}</textarea></label>
+    <div class="fld">誰可以看<div style="display:flex;flex-direction:column;gap:6px;color:var(--fg)">${Object.keys(ACCESS_LBL).map(k => `<label class="check"><input type="radio" name="i_acc" value="${k}" ${acc.mode === k ? "checked" : ""}> ${ACCESS_LBL[k]}${k === "admin" ? '<span class="note">（適合老闆資料等敏感內容）</span>' : ""}</label>`).join("")}</div>
+      <div id="i_list" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin:8px 0 0 24px;color:var(--fg)">${IF.people.map(p => `<label class="check"><input type="checkbox" value="${esc(p.email)}" ${(acc.emails || []).includes(p.email) ? "checked" : ""}> ${esc(p.name)}</label>`).join("")}</div>
+      <div class="note">平台管理員一定看得到所有頁面。</div></div>
+    <div class="foot">${isNew ? "" : '<button class="btn danger" data-del>刪除這一頁</button>'}<span class="sp"></span><button class="btn primary" data-save>${isNew ? "新增" : "儲存"}</button></div></div>`;
+  document.body.appendChild(d);
+  const sync = () => {
+    const t = d.querySelector('[name=i_type]:checked').value, a = d.querySelector('[name=i_acc]:checked').value;
+    d.querySelector("#i_html").hidden = t !== "html"; d.querySelector("#i_urlw").hidden = t !== "link";
+    d.querySelector("#i_bodyl").textContent = t === "text" ? "內容" : "說明（選填，會顯示在下方）";
+    d.querySelector("#i_list").hidden = a !== "list";
+  };
+  sync(); d.addEventListener("change", sync);
+  d.addEventListener("click", async e => {
+    if (e.target === d || e.target.closest("[data-x]")) return d.remove();
+    const del = e.target.closest("[data-del]");
+    if (del) {
+      if (del.dataset.sure !== "1") { del.dataset.sure = "1"; del.textContent = "再按一次確認刪除"; return; }
+      try { await PF.call("pf_apiInfoRemove", [r.id]); IF.rows = IF.rows.filter(x => x.id !== r.id); d.remove(); toast("已刪除"); infoDraw(); } catch (err) { toast(err.message); }
+      return;
+    }
+    const b = e.target.closest("[data-save]"); if (!b) return;
+    const type = d.querySelector('[name=i_type]:checked').value, mode = d.querySelector('[name=i_acc]:checked').value;
+    const obj = {id: r.id, title: d.querySelector("#i_title").value, category: d.querySelector("#i_cat").value, type, url: d.querySelector("#i_url").value.trim(), body: d.querySelector("#i_body").value,
+      access: {mode, emails: [...d.querySelectorAll("#i_list input:checked")].map(x => x.value)}};
+    if (!obj.title.trim()) return toast("請填寫頁面名稱");
+    if (mode === "list" && !obj.access.emails.length) return toast("請勾選可以看的人");
+    const file = d.querySelector("#i_file").files[0];
+    if (type === "html" && !file && !r.fileName) return toast("請選擇 .html 檔");
+    b.disabled = true; b.innerHTML = '<span class="spin"></span> 儲存中';
+    try {
+      if (type === "html" && file) obj.html = {name: file.name, b64: await fileB64(file)};
+      const saved = await PF.call("pf_apiInfoSave", [obj]);
+      const i = IF.rows.findIndex(x => x.id === saved.id); if (i >= 0) IF.rows[i] = saved; else IF.rows.push(saved);
+      infoSel = saved.id; d.remove(); toast(isNew ? "已新增" : "已儲存"); infoDraw();
+      if (isNew && ME) { ME.info = (ME.info || 0) + 1; }
+    } catch (err) { toast(err.message); b.disabled = false; b.textContent = isNew ? "新增" : "儲存"; }
   });
 }
 
