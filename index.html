@@ -79,7 +79,7 @@ button.kpi:hover{border-color:#c9cfdc}
 .kpi .ic{grid-row:span 2;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:19px;background:var(--mcs,var(--accent-soft))}
 .kpi b{font-size:24px;font-weight:700;line-height:1.1}.kpi b.red{color:var(--danger)}.kpi b.amber{color:var(--warn)}
 .kpi span{font-size:12.5px;color:var(--muted)}
-.k-legal{--mcs:var(--rose-soft)}.k-contract{--mcs:var(--blue-soft)}.k-work{--mcs:var(--accent-soft)}.k-pt{--mcs:var(--amber-soft)}.k-asset{--mcs:var(--violet-soft)}
+.k-legal{--mcs:var(--rose-soft)}.k-journey{--mcs:#ffedd5}.m-journey{--mc:#ea580c}.k-contract{--mcs:var(--blue-soft)}.k-work{--mcs:var(--accent-soft)}.k-pt{--mcs:var(--amber-soft)}.k-asset{--mcs:var(--violet-soft)}
 ul.plain{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
 ul.plain li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:baseline}
 ul.plain li .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -201,6 +201,7 @@ const MODULES = [
   {id: "contracts", name: "合約庫", show: p => p.contracts !== "—"},
   {id: "docs", name: "函文", show: p => p.docs !== "—"},
   {id: "legal", name: "法務期限", show: p => p.legal !== "—"},
+  {id: "journey", name: "員工旅程", show: p => !!p.journey && p.journey !== "—"},
   {id: "info", name: "行政資料", show: p => p.isAdmin || (ME && ME.info > 0)},
   {id: "assets", name: "設備資產", show: p => p.assets !== "—"},
   {id: "settings", name: "設定", show: p => p.isAdmin || isFT(p)},
@@ -263,6 +264,7 @@ function startApp() {
   if (p.docs !== "—") roles.push("函文：" + p.docs);
   if (p.legal !== "—") roles.push("法務期限：" + p.legal);
   if (p.assets !== "—") roles.push("設備資產：" + p.assets);
+  if (p.journey && p.journey !== "—") roles.push("員工旅程：" + p.journey);
   if (p.isAdmin) roles.push("平台管理員");
   $("#menu").innerHTML = `<div class="who"><b>${esc(ME.name)}</b><div class="note">${esc(ME.email)}</div><div class="note" style="margin-top:6px">${roles.map(esc).join("<br>")}</div></div>
     <button data-act="logout">登出</button>`;
@@ -293,7 +295,7 @@ function route() {
   if (isFrame) return showFrame(id);
   const sec = document.createElement("section");
   main.appendChild(sec);
-  ({home: renderHome, legal: renderLegal, docs: renderDocs, info: renderInfo, settings: renderSettings})[id](sec);
+  ({home: renderHome, legal: renderLegal, docs: renderDocs, journey: renderJourney, info: renderInfo, settings: renderSettings})[id](sec);
 }
 
 function showFrame(id) {
@@ -395,6 +397,7 @@ function drawHome(r) {
     if (r.contracts.expired) k.push(kpi("k-contract", "⚠️", r.contracts.expired, "合約已到期未處理", "contracts", "red"));
   }
   if (r.docs && !r.docs.error) k.push(kpi("k-doc", "📮", r.docs.open, `函文待處理${r.docs.overdue ? `（逾期 ${r.docs.overdue}）` : ""}`, "docs", r.docs.overdue ? "red" : r.docs.soon ? "amber" : ""));
+  if (r.journey && !r.journey.error && r.journey.open) k.push(kpi("k-journey", "🧭", r.journey.open, `員工旅程待辦${r.journey.overdue ? `（逾期 ${r.journey.overdue}）` : ""}`, ME.perm.journey !== "—" ? "journey" : "home", r.journey.overdue ? "red" : r.journey.soon ? "amber" : ""));
   if (r.legal && !r.legal.error) k.push(kpi("k-legal", "⚖️", r.legal.soon + r.legal.overdue, `法務期限 30 天內${r.legal.overdue ? `（逾期 ${r.legal.overdue}）` : ""}`, "legal", r.legal.overdue ? "red" : r.legal.soon ? "amber" : ""));
 
   if (r.docs) cards.push(`<div class="card m-doc"><h3>📮 函文<button class="go" data-go="docs">全部 →</button></h3>${r.docs.error ? `<div class="note">${esc(r.docs.error)}</div>` :
@@ -405,12 +408,15 @@ function drawHome(r) {
     (r.contracts.list.length ? `<ul class="plain">${r.contracts.list.map(x => `<li><span class="t">${esc(x.counterparty)} <span class="note">${esc(x.dept || "")}</span></span>${dayChip(x.days)}</li>`).join("")}</ul>` : '<div class="note">沒有即將到期的合約</div>')
     + (r.contracts.missing && ME.perm.contracts !== "部門" ? `<div class="note" style="margin-top:10px">另有 ${r.contracts.missing} 份需追蹤的合約還沒填到期日</div>` : "")}</div>`);
   if (r.work && !r.work.error && ME.perm.work === "正職") cards.push(`<div class="card m-work"><h3>✅ 我的待辦 <span class="note">${r.work.mine} 項</span><button class="go" data-go="work">工作台 →</button></h3>${r.work.list.length ? `<ul class="plain">${r.work.list.map(x => `<li class="click" data-task="${esc(x.id)}"><span class="t">${esc(x.title)}</span>${x.due ? dayChip(daysLeft(x.due, r.today)) : `<span class="chip">${esc(x.status || "未設期限")}</span>`}</li>`).join("")}${r.work.mine > r.work.list.length ? `<li class="note">還有 ${r.work.mine - r.work.list.length} 項…</li>` : ""}</ul>` : '<div class="note">目前沒有待辦</div>'}</div>`);
+  if (r.journey) cards.push(`<div class="card m-journey"><h3>🧭 員工旅程 <span class="note">我負責 ${r.journey.open || 0} 項</span>${ME.perm.journey !== "—" ? '<button class="go" data-go="journey">全部 →</button>' : ""}</h3>${r.journey.error ? `<div class="note">${esc(r.journey.error)}</div>` :
+    r.journey.list.length ? `<ul class="plain">${r.journey.list.map(x => `<li class="click" data-jyo="${esc(x.jid)}"><span class="t">${x.stage === "離職" ? "👋" : "🎉"} ${esc(x.name)}：${esc(x.item)}${x.att ? " 📎" : ""}</span>${dayChip(x.days)}</li>`).join("")}${r.journey.open > r.journey.list.length ? `<li class="note">還有 ${r.journey.open - r.journey.list.length} 項…</li>` : ""}</ul>` : '<div class="note">目前沒有派給你的到離職項目</div>'}</div>`);
   if (r.work && !r.work.error) cards.push(`<div class="card m-pt"><h3>🕘 今天的 PT 班表<button class="go" data-go="pt">排班 →</button></h3>${r.work.shifts.length ? `<ul class="plain">${r.work.shifts.map(s => `<li><span class="t">${esc(s.name)} <span class="note">${esc(s.type || "")}</span></span><span class="note">${esc(s.start)}–${esc(s.end)}</span></li>`).join("")}</ul>` : '<div class="note">今天沒有排班</div>'}</div>`);
   if (ME.perm.assets !== "—") cards.push(`<div class="card m-asset" id="assetCard"><h3>🖥️ 設備資產<button class="go" data-go="assets">前往 →</button></h3><div class="note">資產、借用、簽收單、維修紀錄</div></div>`);
   $("#homeBody").innerHTML = (k.length ? `<div class="kpis">${k.join("")}</div>` : "") + `<div class="grid g3">${cards.join("")}</div>` + (r.team ? teamHtml(r.team, r.today) : "");
   $("#homeBody").onclick = e => {
     const t = e.target.closest("[data-task]"); if (t) return openTaskInWork(t.dataset.task);
     const d = e.target.closest("[data-doc]"); if (d) { docOpen = d.dataset.doc; return go("docs"); }
+    const j = e.target.closest("[data-jyo]"); if (j && ME.perm.journey !== "—") { jyOpen = j.dataset.jyo; return go("journey"); }
   };
   if (ME.perm.assets !== "—") homeAssets();
 }
@@ -944,6 +950,266 @@ function infoEdit(r) {
   });
 }
 
+/* ================= 員工旅程（行政端） ================= */
+let JY = null, jyTab = "board", jyOpen = "", jyFilter = {stage: "", status: "open", q: ""};
+const JY_ICON = {"到職": "🎉", "離職": "👋"};
+const jyName = e => { if (!e) return "未指定"; const p = (JY.people || []).find(x => x.email === e); return p ? p.name : e.split("@")[0]; };
+const jyDue = (r, it) => addDays(r.date, Number(it.off) || 0);
+const jyOffTxt = o => (o = Number(o) || 0) === 0 ? "當天" : o < 0 ? "前 " + (-o) + " 天" : "後 " + o + " 天";
+const jyCanItem = it => JY.canEdit || it.who === JY.me;
+const jyStageChip = s => `<span class="chip ${s === "到職" ? "teal" : "violet"}">${JY_ICON[s] || ""} ${esc(s)}</span>`;
+const jyFiles = (r, itemId) => (r.files || []).filter(f => (f.item || "") === itemId);
+const jyMissing = r => (r.items || []).filter(it => it.att && it.done && !jyFiles(r, it.id).length);
+async function renderJourney(sec) {
+  sec.innerHTML = `<div class="toolbar"><h2>員工旅程</h2><span class="note">到職、離職的行政工作</span><span class="sp"></span><button class="btn primary" id="jyAdd" hidden>＋ 新增員工旅程</button></div>
+    <div class="banner">目前只做<b>行政端</b>：帳號、群組權限、設備、辦公室。HR 的項目（勞健保、聘僱合約、薪資）等 HR 串接後再加進來。</div>
+    <div class="subtabs" id="jyTabs"></div>
+    <div id="jyBody"><div class="empty"><span class="spin"></span> 載入中…</div></div>`;
+  try { JY = await PF.call("pf_apiJourney"); } catch (e) { $("#jyBody").innerHTML = `<div class="banner err">${esc(e.message)}</div>`; return; }
+  if (view !== "journey") return;
+  $("#jyAdd").hidden = !JY.canEdit;
+  $("#jyAdd").onclick = () => jyDrawer(null);
+  $("#jyTabs").onclick = e => { const b = e.target.closest("[data-jt]"); if (b) { jyTab = b.dataset.jt; jyDraw(); } };
+  jyDraw();
+  if (jyOpen) { const r = JY.rows.find(x => x.id === jyOpen); jyOpen = ""; if (r) jyDrawer(r); }
+}
+function jyReplace(saved) { const i = JY.rows.findIndex(x => x.id === saved.id); if (i >= 0) JY.rows[i] = saved; else JY.rows.push(saved); if ($("#jyBody")) jyDraw(); return saved; }
+function jyDraw() {
+  $("#jyTabs").innerHTML = [["board", "全部員工"], ["mine", "我負責的項目"], ["tpl", "清單範本"]].map(([k, n]) => `<button data-jt="${k}" aria-current="${jyTab === k}">${n}</button>`).join("");
+  ({board: jyBoard, mine: jyMine, tpl: jyTpl})[jyTab]();
+}
+function jyBoard() {
+  const t = JY.today || today(), q = jyFilter.q.trim().toLowerCase();
+  const open = JY.rows.flatMap(r => (r.items || []).filter(i => !i.done).map(i => ({r, i, d: daysLeft(jyDue(r, i), t)})));
+  const rows = JY.rows.filter(r => (!jyFilter.stage || r.stage === jyFilter.stage)
+    && (jyFilter.status === "all" || (jyFilter.status === "open" ? r.status !== "完成" : r.status === "完成"))
+    && (!q || (r.name + " " + r.acct + " " + r.dept + " " + r.title).toLowerCase().includes(q)))
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const kpi = (ic, n, label, color) => `<div class="kpi"><span class="ic">${ic}</span><b class="${color || ""}">${n}</b><span>${label}</span></div>`;
+  const miss = JY.rows.reduce((a, r) => a + jyMissing(r).length, 0);
+  $("#jyBody").innerHTML = `<div class="kpis">${kpi("🎉", JY.rows.filter(r => r.stage === "到職" && r.status !== "完成").length, "到職處理中")}${kpi("👋", JY.rows.filter(r => r.stage === "離職" && r.status !== "完成").length, "離職處理中")}${kpi("⚠️", open.filter(x => x.d < 0).length, "逾期待辦", open.some(x => x.d < 0) ? "red" : "")}${kpi("⏰", open.filter(x => x.d >= 0 && x.d <= 3).length, "3 天內到期", "amber")}${kpi("📎", miss, "完成了但還沒附截圖", miss ? "amber" : "")}</div>
+    <div class="filters"><input id="jyQ" type="search" placeholder="搜尋姓名、帳號、部門" value="${esc(jyFilter.q)}">
+      <select id="jyStage"><option value="">到職＋離職</option><option>到職</option><option>離職</option></select>
+      <select id="jyStatus"><option value="open">處理中</option><option value="done">已完成</option><option value="all">全部</option></select></div>
+    <div class="tablewrap"><table style="min-width:900px"><thead><tr><th>階段</th><th>員工</th><th>基準日</th><th style="width:170px">行政進度</th><th>下一個待辦</th><th>附件</th></tr></thead><tbody>${rows.map(r => {
+      const its = r.items || [], d = its.filter(i => i.done).length, late = its.filter(i => !i.done && daysLeft(jyDue(r, i), t) < 0).length;
+      const nx = its.filter(i => !i.done).sort((a, b) => a.off - b.off)[0], m = jyMissing(r).length;
+      return `<tr class="click${r.status === "完成" ? " done" : ""}" data-jy="${esc(r.id)}"><td>${jyStageChip(r.stage)}</td>
+        <td><b class="ttl">${esc(r.name)}</b><div class="note">${esc(r.dept)}${r.title ? "・" + esc(r.title) : ""}</div></td>
+        <td style="white-space:nowrap">${esc(JY.base[r.stage])} ${showDate(r.date)}<div class="note">${daysLeft(r.date, t) >= 0 ? "還有 " + daysLeft(r.date, t) + " 天" : "已過 " + (-daysLeft(r.date, t)) + " 天"}</div></td>
+        <td><div style="display:flex;align-items:center;gap:8px"><div class="load" style="flex:1"><i style="width:${its.length ? d / its.length * 100 : 0}%"></i></div><span class="note">${d}/${its.length}</span></div>${late ? `<span class="chip red" style="margin-top:4px">逾期 ${late}</span>` : ""}</td>
+        <td>${nx ? `${esc(nx.t)}<div>${dayChip(daysLeft(jyDue(r, nx), t))} <span class="note">${esc(jyName(nx.who))}</span></div>` : '<span class="chip green">行政項目全部完成</span>'}</td>
+        <td style="white-space:nowrap">${(r.files || []).length ? "📎 " + r.files.length : '<span class="note">—</span>'}${m ? ` <span class="chip amber">缺 ${m}</span>` : ""}</td></tr>`;
+    }).join("") || `<tr><td colspan="6" class="empty">${JY.rows.length ? "沒有符合條件的員工" : (JY.canEdit ? "還沒有員工旅程。有新人要報到、或有人要離職時，按右上角「新增員工旅程」，會自動帶出行政要做的項目和期限。" : "目前沒有資料")}</td></tr>`}</tbody></table></div>`;
+  $("#jyStage").value = jyFilter.stage; $("#jyStatus").value = jyFilter.status;
+  ["jyQ", "jyStage", "jyStatus"].forEach(id => $("#" + id).addEventListener("input", () => {
+    jyFilter = {q: $("#jyQ").value, stage: $("#jyStage").value, status: $("#jyStatus").value};
+    const pos = $("#jyQ").selectionStart, f = document.activeElement && document.activeElement.id;
+    jyBoard(); if (f === "jyQ") { $("#jyQ").focus(); try { $("#jyQ").setSelectionRange(pos, pos); } catch (_) {} }
+  }));
+  $("#jyBody").onclick = e => { const tr = e.target.closest("[data-jy]"); if (tr) jyDrawer(JY.rows.find(x => x.id === tr.dataset.jy)); };
+}
+function jyMine() {
+  const t = JY.today || today();
+  const list = JY.rows.flatMap(r => (r.items || []).filter(i => !i.done && i.who === JY.me).map(i => ({r, i, due: jyDue(r, i)}))).sort((a, b) => a.due.localeCompare(b.due));
+  $("#jyBody").innerHTML = `<div class="banner">派給你的員工旅程項目都在這裡，首頁「我的待辦」也看得到。明天以前到期、或已逾期的項目，每天 09:00 會寄一封彙整信給你。</div>
+    <div class="tablewrap"><table style="min-width:760px"><thead><tr><th style="width:40px"></th><th>項目</th><th>員工</th><th>期限</th><th>附件</th></tr></thead><tbody>${list.map(x => `<tr>
+      <td><input type="checkbox" data-jck="${esc(x.r.id)}|${esc(x.i.id)}" style="width:17px;height:17px;accent-color:var(--accent)"></td>
+      <td>${esc(x.i.t)}${x.i.att ? ' <span class="chip">📎 需附件</span>' : ""}</td>
+      <td>${jyStageChip(x.r.stage)} <button class="btn link" data-jy="${esc(x.r.id)}">${esc(x.r.name)}</button> <span class="note">${esc(x.r.dept)}</span></td>
+      <td>${showDate(x.due)} ${dayChip(daysLeft(x.due, t))}</td>
+      <td class="note">${jyFiles(x.r, x.i.id).length || "—"}</td></tr>`).join("") || '<tr><td colspan="5" class="empty">目前沒有派給你的項目 🎉</td></tr>'}</tbody></table></div>`;
+  $("#jyBody").onclick = async e => {
+    const o = e.target.closest("[data-jy]"); if (o) return jyDrawer(JY.rows.find(x => x.id === o.dataset.jy));
+    const c = e.target.closest("[data-jck]"); if (!c) return;
+    const [jid, iid] = c.dataset.jck.split("|"); c.disabled = true;
+    try { jyReplace(await PF.call("pf_apiJourneyItem", [jid, iid, {done: true}])); toast("已完成"); } catch (err) { toast(err.message); c.checked = false; c.disabled = false; }
+  };
+}
+function jyTpl() {
+  $("#jyBody").innerHTML = `<div class="banner">新增一位員工時，會自動帶入這份清單，並依「報到日／最後工作日」算出每一項的期限。負責人是預設值，每位員工可以再個別改。標 📎 的項目，完成時要上傳開通或停用的截圖。改清單只影響之後新增的員工。</div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr))">${["到職", "離職"].map(st => `<div class="card"><h3>${JY_ICON[st]} ${st} <span class="note">（以${esc(JY.base[st])}為基準）</span>${JY.canEdit ? `<button class="go" data-tpled="${st}">編輯清單</button>` : ""}</h3>
+      ${JY.cats.filter(k => (JY.tpl[st] || []).some(x => x.cat === k)).map(k => `<div class="note" style="margin:10px 0 4px;font-weight:600">${esc(k)}</div><ul class="plain">${JY.tpl[st].filter(x => x.cat === k).map(x => `<li><span class="t">${esc(x.t)}${x.att ? " 📎" : ""}</span><span class="note">${jyOffTxt(x.off)}・${esc(jyName(x.who))}</span></li>`).join("")}</ul>`).join("")}</div>`).join("")}</div>`;
+  $("#jyBody").onclick = e => { const b = e.target.closest("[data-tpled]"); if (b) jyTplEdit(b.dataset.tpled); };
+}
+function jyTplEdit(st) {
+  let list = (JY.tpl[st] || []).map(x => Object.assign({}, x));
+  const d = document.createElement("div"); d.className = "drawer";
+  const ppl = JY.people || [];
+  const paint = () => {
+    d.innerHTML = `<div class="panel wide" role="dialog" aria-label="編輯清單範本"><div class="hdr"><h2>${JY_ICON[st]} ${st}清單範本</h2><button class="btn small" data-x>關閉</button></div>
+      <div class="note">期限填「相對${esc(JY.base[st])}幾天」：負數是之前，例如 -2 ＝${esc(JY.base[st])}前 2 天；0 ＝當天。「檔名用詞」會出現在附件檔名裡，例如「Slack開通」。</div>
+      <div class="tablewrap"><table style="min-width:820px"><thead><tr><th>分類</th><th>項目</th><th>檔名用詞</th><th style="width:80px">期限（天）</th><th>負責人</th><th>📎</th><th></th></tr></thead><tbody>${list.map((x, i) => `<tr data-ti="${i}">
+        <td><select data-k="cat">${JY.cats.map(c => `<option${c === x.cat ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></td>
+        <td><input data-k="t" value="${esc(x.t)}" style="width:100%"></td>
+        <td><input data-k="fn" value="${esc(x.fn || "")}" style="width:100%"></td>
+        <td><input data-k="off" type="number" value="${esc(x.off)}" style="width:70px"></td>
+        <td><select data-k="who"><option value="">未指定</option>${ppl.map(p => `<option value="${esc(p.email)}"${p.email === x.who ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select></td>
+        <td><input data-k="att" type="checkbox" ${x.att ? "checked" : ""}></td>
+        <td style="white-space:nowrap"><button class="btn small" data-tmv="-1">↑</button><button class="btn small" data-tmv="1">↓</button><button class="btn small danger" data-trm>刪除</button></td></tr>`).join("")}</tbody></table></div>
+      <div><button class="btn small" data-tadd>＋ 新增一項</button></div>
+      <div class="foot"><span class="sp"></span><button class="btn primary" data-tsave>儲存範本</button></div></div>`;
+  };
+  paint(); document.body.appendChild(d);
+  d.addEventListener("input", e => { const tr = e.target.closest("[data-ti]"), k = e.target.dataset.k; if (!tr || !k) return; const x = list[+tr.dataset.ti]; x[k] = e.target.type === "checkbox" ? e.target.checked : k === "off" ? Number(e.target.value) : e.target.value; });
+  d.addEventListener("click", async e => {
+    if (e.target === d || e.target.closest("[data-x]")) return d.remove();
+    const tr = e.target.closest("[data-ti]"), i = tr ? +tr.dataset.ti : -1;
+    if (e.target.closest("[data-trm]")) { list.splice(i, 1); return paint(); }
+    const mv = e.target.closest("[data-tmv]"); if (mv) { const j = i + Number(mv.dataset.tmv); if (j >= 0 && j < list.length) { [list[i], list[j]] = [list[j], list[i]]; paint(); } return; }
+    if (e.target.closest("[data-tadd]")) { list.push({cat: "其他", t: "", fn: "", off: 0, who: JY.me, att: false}); paint(); const ins = d.querySelectorAll('[data-k="t"]'); ins[ins.length - 1].focus(); return; }
+    const b = e.target.closest("[data-tsave]"); if (!b) return;
+    if (list.some(x => !String(x.t || "").trim())) return toast("有項目還沒填名稱");
+    b.disabled = true;
+    try { const tpl = Object.assign({}, JY.tpl); tpl[st] = list; JY.tpl = await PF.call("pf_apiJourneyTplSave", [tpl]); d.remove(); toast("已儲存範本，之後新增的員工會套用"); jyDraw(); }
+    catch (err) { toast(err.message); b.disabled = false; }
+  });
+}
+function jyDrawer(r) {
+  const isNew = !r;
+  let editing = isNew;
+  const t = JY.today || today();
+  const d = document.createElement("div"); d.className = "drawer";
+  const ppl = JY.people || [];
+  const whoSel = (it, dis) => `<select data-jwho="${esc(it.id)}" ${dis ? "disabled" : ""} style="padding:3px 6px;border:1px solid var(--line);border-radius:8px;font-size:12.5px"><option value="">未指定</option>${ppl.map(p => `<option value="${esc(p.email)}"${p.email === it.who ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select>`;
+  const fileLi = f => { const it = f.item ? (r.items || []).find(x => x.id === f.item) : null, can = it ? jyCanItem(it) : JY.canEdit;
+    return `<li data-fid="${esc(f.id)}"><span class="t"><button class="btn link" data-fopen="${esc(f.id)}">${/^image\//.test(f.mime || "") ? "🖼️" : "📄"} ${esc(f.name)}</button> <span class="note">${fmtSize(f.size || 0)}・${esc(jyName(f.by))} ${fmtAt(f.at)}</span></span><span style="white-space:nowrap">${can ? `<button class="btn small" data-fren="${esc(f.id)}">改檔名</button> <button class="btn small danger" data-fdel="${esc(f.id)}">刪除</button>` : ""}</span></li>`; };
+  const form = () => {
+    const v = r || {stage: "到職", name: "", acct: "", dept: "", title: "", boss: "", date: addDays(t, 7), note: ""};
+    return `<div class="fld">階段${isNew ? `<div style="display:flex;gap:16px;color:var(--fg)">${["到職", "離職"].map(s => `<label class="check"><input type="radio" name="j_stage" value="${s}" ${v.stage === s ? "checked" : ""}> ${JY_ICON[s]} ${s}</label>`).join("")}</div>` : `<div>${jyStageChip(v.stage)} <span class="note">建立後不能改階段</span></div>`}</div>
+      <div class="row2"><label class="fld">姓名<input id="j_name" value="${esc(v.name)}" placeholder="例如：王小明"></label>
+        <label class="fld">公司 Email 帳號<input id="j_acct" value="${esc(v.acct)}" placeholder="例如：wang.xm（@swag.live 前面）"></label></div>
+      <div class="row2"><label class="fld">部門<input id="j_dept" list="j_depts" value="${esc(v.dept)}" placeholder="例如：Marketing"><datalist id="j_depts">${(JY.depts || []).map(x => `<option value="${esc(x)}">`).join("")}</datalist></label>
+        <label class="fld">職稱<input id="j_title" value="${esc(v.title)}"></label></div>
+      <div class="row2"><label class="fld">直屬主管<input id="j_boss" value="${esc(v.boss)}"></label>
+        <label class="fld"><span id="j_datel">${esc(JY.base[v.stage])}</span><input id="j_date" type="date" value="${esc(v.date)}"></label></div>
+      <label class="fld">備註<textarea id="j_note" placeholder="例如：主管希望先開 Figma 權限">${esc(v.note || "")}</textarea></label>
+      ${isNew ? '<div class="card" style="--mc:var(--accent)" id="j_prev"></div>' : ""}`;
+  };
+  const folderPath = v => `員工旅程附件 / ${esc(v.dept || "部門")} / ${esc(v.name || "姓名")}（${esc(v.acct || "帳號")}）/ ${esc(v.stage)}`;
+  const paint = () => {
+    if (editing) {
+      d.innerHTML = `<div class="panel wide" role="dialog" aria-label="員工旅程"><div class="hdr"><h2>${isNew ? "新增員工旅程" : "修改基本資料"}</h2><button class="btn small" data-x>關閉</button></div>${form()}
+        <div class="foot">${isNew ? "" : '<button class="btn" data-cancel>取消</button>'}<span class="sp"></span><button class="btn primary" data-jsave>${isNew ? "建立" : "儲存"}</button></div></div>`;
+      if (isNew) prev();
+      return;
+    }
+    const its = r.items || [], dn = its.filter(i => i.done).length;
+    d.innerHTML = `<div class="panel wide" role="dialog" aria-label="員工旅程"><div class="hdr"><h2>${JY_ICON[r.stage]} ${esc(r.name)}｜${esc(r.stage)} <span class="note">${dn}/${its.length}</span></h2><button class="btn small" data-x>關閉</button></div>
+      <dl class="dl"><dt>部門</dt><dd>${esc(r.dept)}</dd><dt>職稱</dt><dd>${esc(r.title || "—")}</dd><dt>直屬主管</dt><dd>${esc(r.boss || "—")}</dd><dt>${esc(JY.base[r.stage])}</dt><dd><b>${showDate(r.date)}</b></dd><dt>Email</dt><dd>${esc(r.acct)}@swag.live</dd>${r.note ? `<dt>備註</dt><dd>${esc(r.note)}</dd>` : ""}</dl>
+      ${JY.canEdit ? '<div><button class="btn small" data-jedit>修改基本資料</button></div>' : ""}
+      <div class="banner" style="margin:0"><div class="note">附件自動存到這個 Drive 資料夾（只有行政看得到，經平台代開）</div><div class="mono" style="font-size:12.5px;word-break:break-all">📁 ${folderPath(r)} /</div><div class="note" style="margin-top:4px">檔名：上傳日期_階段_項目_姓名_序號，上傳後可以改檔名。</div></div>
+      ${JY.cats.filter(k => its.some(i => i.cat === k)).map(k => `<div><div style="display:flex;gap:8px;align-items:center;margin:6px 0"><span class="chip teal">${esc(k)}</span><span class="note">${its.filter(i => i.cat === k && i.done).length}/${its.filter(i => i.cat === k).length}</span></div>
+        ${k === "設備" ? '<div class="banner warn" style="margin:0 0 6px;font-size:12.5px">設備資產還沒直接連動（等 Supabase 開啟 Google 登入）。請先到「設備資產」指派或收回，完成後回來打勾、上傳簽收單。 <button class="btn small" data-go="assets">前往設備資產 →</button></div>' : ""}
+        ${its.filter(i => i.cat === k).map(it => { const can = jyCanItem(it), fs = jyFiles(r, it.id), due = jyDue(r, it);
+          return `<div style="border-bottom:1px solid var(--line);padding:8px 2px">
+          <div style="display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:center">
+            <input type="checkbox" data-jdone="${esc(it.id)}" ${it.done ? "checked" : ""} ${can ? "" : "disabled"} style="width:17px;height:17px;accent-color:var(--accent)">
+            <span style="${it.done ? "color:var(--done);text-decoration:line-through" : ""}">${esc(it.t)}${it.att ? ` <span class="chip ${it.done && !fs.length ? "amber" : ""}">📎 ${it.done && !fs.length ? "還沒附截圖" : "需附件"}</span>` : ""}${it.done && it.doneBy ? `<div class="note" style="text-decoration:none">${esc(jyName(it.doneBy))} ${fmtAt(it.doneAt)} 完成</div>` : ""}</span>
+            <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">${JY.canEdit ? whoSel(it) : `<span class="note">${esc(jyName(it.who))}</span>`}${it.done ? '<span class="chip green">完成</span>' : `<span class="note">${showDate(due)}</span> ${dayChip(daysLeft(due, t))}`}${can ? `<label class="btn small" style="cursor:pointer">📎 上傳<input type="file" multiple hidden data-jup="${esc(it.id)}"></label>` : ""}${JY.canEdit && !fs.length ? `<button class="btn small danger" data-jirm="${esc(it.id)}" title="刪除這個項目">×</button>` : ""}</span>
+          </div>${fs.length ? `<ul class="plain" style="margin:6px 0 0 30px;gap:6px">${fs.map(fileLi).join("")}</ul>` : ""}</div>`; }).join("")}</div>`).join("")}
+      <div><div style="display:flex;gap:8px;align-items:center;margin:6px 0"><span class="chip">其他附件</span><span class="note">不屬於上面任何一項的檔案，例如主管的開通申請信</span></div>
+        <ul class="plain" style="gap:6px">${jyFiles(r, "").map(fileLi).join("") || '<li class="note">沒有</li>'}</ul>
+        ${JY.canEdit ? '<label class="btn small" style="display:inline-block;margin-top:6px;cursor:pointer">📎 上傳其他附件<input type="file" multiple hidden data-jup=""></label>' : ""} <span class="note" id="j_upmsg"></span></div>
+      ${JY.canEdit ? `<div class="card" style="--mc:var(--line)"><div class="note" style="margin-bottom:6px">只加在這位員工的項目（不影響清單範本）</div><div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="j_it" placeholder="例如：開通 Figma" style="flex:1 1 180px;padding:7px 11px;border:1px solid var(--line);border-radius:10px">
+        <select id="j_icat" style="padding:7px 10px;border:1px solid var(--line);border-radius:10px">${JY.cats.map(c => `<option>${esc(c)}</option>`).join("")}</select>
+        <input id="j_idue" type="date" value="${esc(r.date)}" style="padding:7px 10px;border:1px solid var(--line);border-radius:10px">
+        <label class="check"><input type="checkbox" id="j_iatt"> 需附件</label><button class="btn" data-jiadd>＋ 新增項目</button></div></div>` : ""}
+      <div><div class="note" style="margin-bottom:6px">處理紀錄</div><ul class="timeline">${(r.log || []).slice().reverse().slice(0, 30).map(l => `<li><b>${esc(jyName(l.by))}</b> <span class="note">${fmtAt(l.at)}</span><div class="note">${esc(l.text)}</div></li>`).join("") || '<li class="note">還沒有紀錄</li>'}</ul></div>
+      <div class="foot">${JY.canEdit ? '<button class="btn danger" data-jdel>刪除這筆</button>' : ""}<span class="sp"></span><button class="btn primary" data-x>完成</button></div></div>`;
+  };
+  function prev() {
+    const st = (d.querySelector("[name=j_stage]:checked") || {}).value || "到職", dt = d.querySelector("#j_date").value || t;
+    d.querySelector("#j_datel").textContent = JY.base[st];
+    const v = {stage: st, name: d.querySelector("#j_name").value.trim(), acct: d.querySelector("#j_acct").value.trim().replace(/@.*$/, ""), dept: d.querySelector("#j_dept").value.trim()};
+    const list = (JY.tpl[st] || []).slice().sort((a, b) => a.off - b.off);
+    d.querySelector("#j_prev").innerHTML = `<h3 style="font-size:14px">會自動建立 ${list.length} 個行政項目</h3><div class="note mono" style="word-break:break-all;margin-bottom:8px">📁 ${folderPath(v)} /</div>
+      <ul class="plain" style="gap:5px">${list.map(x => `<li><span class="t">${showDate(addDays(dt, Number(x.off) || 0))}　${esc(x.t)}${x.att ? " 📎" : ""}</span><span class="note">${esc(jyName(x.who))}</span></li>`).join("")}</ul>`;
+  }
+  d.addEventListener("input", () => { if (editing && isNew) prev(); });
+  const readB64 = f => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1]); fr.onerror = () => rej(new Error("讀取檔案失敗")); fr.readAsDataURL(f); });
+  d.addEventListener("change", async e => {
+    const up = e.target.closest("[data-jup]");
+    if (up) {
+      const files = [...up.files], msg = d.querySelector("#j_upmsg");
+      for (const f of files) {
+        if (f.size > 20 * 1048576) { toast(`${f.name} 超過 20MB`); continue; }
+        if (msg) msg.innerHTML = `<span class="spin"></span> 上傳 ${esc(f.name)}…`; else toast("上傳 " + f.name + "…");
+        try { r = jyReplace(await PF.call("pf_apiJourneyAttach", [r.id, up.dataset.jup, {name: f.name, mime: f.type, b64: await readB64(f)}])); } catch (err) { toast(err.message); }
+      }
+      paint(); return;
+    }
+    const dn = e.target.closest("[data-jdone]");
+    if (dn) { dn.disabled = true; try { r = jyReplace(await PF.call("pf_apiJourneyItem", [r.id, dn.dataset.jdone, {done: dn.checked}])); const it = r.items.find(x => x.id === dn.dataset.jdone); if (it && it.done && it.att && !jyFiles(r, it.id).length) toast("已完成，記得上傳截圖"); } catch (err) { toast(err.message); } paint(); return; }
+    const wh = e.target.closest("[data-jwho]");
+    if (wh) { try { r = jyReplace(await PF.call("pf_apiJourneyItem", [r.id, wh.dataset.jwho, {who: wh.value}])); toast("已改負責人"); } catch (err) { toast(err.message); } paint(); }
+  });
+  d.addEventListener("click", async e => {
+    if (e.target === d || e.target.closest("[data-x]")) return d.remove();
+    if (e.target.closest("[data-go]")) { d.remove(); return; }
+    if (e.target.closest("[data-jedit]")) { editing = true; return paint(); }
+    if (e.target.closest("[data-cancel]")) { editing = false; return paint(); }
+    const sv = e.target.closest("[data-jsave]");
+    if (sv) {
+      const g = id => d.querySelector(id).value;
+      const obj = {id: r ? r.id : undefined, stage: r ? r.stage : (d.querySelector("[name=j_stage]:checked") || {}).value, name: g("#j_name"), acct: g("#j_acct"), dept: g("#j_dept"), title: g("#j_title"), boss: g("#j_boss"), date: g("#j_date"), note: g("#j_note")};
+      if (!obj.name.trim()) return toast("請填寫姓名");
+      if (!obj.acct.trim()) return toast("請填寫公司 Email 帳號");
+      sv.disabled = true; sv.innerHTML = '<span class="spin"></span> 儲存中';
+      try { r = jyReplace(await PF.call("pf_apiJourneySave", [obj])); toast(isNew ? `已建立，共 ${r.items.length} 個項目` : "已儲存"); editing = false; paint(); }
+      catch (err) { toast(err.message); sv.disabled = false; sv.textContent = isNew ? "建立" : "儲存"; }
+      return;
+    }
+    const fo = e.target.closest("[data-fopen]"); if (fo) return openB64(() => PF.call("pf_apiJourneyFile", [fo.dataset.fopen]));
+    const fr = e.target.closest("[data-fren]");
+    if (fr) {
+      const f = r.files.find(x => x.id === fr.dataset.fren), li = fr.closest("li");
+      const base = String(f.name).replace(/\.[A-Za-z0-9]{1,6}$/, ""), ext = (String(f.name).match(/\.[A-Za-z0-9]{1,6}$/) || [""])[0];
+      li.innerHTML = `<span class="t" style="display:flex;gap:6px;align-items:center"><input class="fren-in" value="${esc(base)}" style="flex:1;padding:6px 10px;border:1px solid var(--line);border-radius:8px"><span class="note">${esc(ext)}</span></span><span style="white-space:nowrap"><button class="btn small primary" data-frok="${esc(f.id)}">儲存</button> <button class="btn small" data-frno>取消</button></span>`;
+      const inp = li.querySelector(".fren-in"); inp.focus(); inp.select();
+      inp.onkeydown = ev => { if (ev.key === "Enter") li.querySelector("[data-frok]").click(); if (ev.key === "Escape") paint(); };
+      return;
+    }
+    if (e.target.closest("[data-frno]")) return paint();
+    const fk = e.target.closest("[data-frok]");
+    if (fk) {
+      const li = fk.closest("li"), f = r.files.find(x => x.id === fk.dataset.frok), ext = (String(f.name).match(/\.[A-Za-z0-9]{1,6}$/) || [""])[0], v = li.querySelector(".fren-in").value.trim();
+      if (!v) return toast("請輸入檔名");
+      fk.disabled = true;
+      try { r = jyReplace(await PF.call("pf_apiJourneyRename", [f.id, v + ext])); paint(); toast("已改檔名（Drive 上也一起改了）"); } catch (err) { toast(err.message); fk.disabled = false; }
+      return;
+    }
+    const fd = e.target.closest("[data-fdel]");
+    if (fd) {
+      if (fd.dataset.sure !== "1") { fd.dataset.sure = "1"; fd.textContent = "確定刪除？"; return; }
+      fd.disabled = true;
+      try { r = jyReplace(await PF.call("pf_apiJourneyDetach", [fd.dataset.fdel])); paint(); toast("已刪除附件"); } catch (err) { toast(err.message); fd.disabled = false; }
+      return;
+    }
+    const ir = e.target.closest("[data-jirm]");
+    if (ir) {
+      if (ir.dataset.sure !== "1") { ir.dataset.sure = "1"; ir.textContent = "確定刪除？"; return; }
+      try { r = jyReplace(await PF.call("pf_apiJourneyItemRemove", [r.id, ir.dataset.jirm])); paint(); } catch (err) { toast(err.message); }
+      return;
+    }
+    if (e.target.closest("[data-jiadd]")) {
+      const tt = d.querySelector("#j_it").value.trim(); if (!tt) return toast("請填寫項目名稱");
+      const due = d.querySelector("#j_idue").value || r.date;
+      const off = Math.round((new Date(due + "T00:00:00") - new Date(r.date + "T00:00:00")) / 86400000);
+      try { r = jyReplace(await PF.call("pf_apiJourneyItemAdd", [r.id, {t: tt, cat: d.querySelector("#j_icat").value, off, who: JY.me, att: d.querySelector("#j_iatt").checked}])); paint(); toast("已新增項目"); } catch (err) { toast(err.message); }
+      return;
+    }
+    const del = e.target.closest("[data-jdel]");
+    if (del) {
+      if (del.dataset.sure !== "1") { del.dataset.sure = "1"; del.textContent = "再按一次確認刪除（Drive 上的附件會保留）"; return; }
+      try { await PF.call("pf_apiJourneyRemove", [r.id]); JY.rows = JY.rows.filter(x => x.id !== r.id); d.remove(); toast("已刪除"); jyDraw(); } catch (err) { toast(err.message); }
+    }
+  });
+  paint();
+  document.body.appendChild(d);
+}
+
 /* ================= 設備資產（Supabase） ================= */
 let _sb = null;
 function loadScript(src) { return new Promise((res, rej) => { const x = document.createElement("script"); x.src = src; x.onload = res; x.onerror = () => rej(new Error("無法載入 " + src)); document.head.appendChild(x); }); }
@@ -1020,9 +1286,9 @@ function permTab() {
     <div class="toolbar"><input id="pmQ" type="search" placeholder="搜尋姓名或 Email" style="padding:7px 11px;border:1px solid var(--line);border-radius:10px;min-width:220px"><span class="sp"></span><button class="btn" id="pmAdd">＋ 新增人員</button><button class="btn primary" id="pmSave" disabled>儲存變更</button></div>
     <datalist id="deptList">${deptList}</datalist>
     <div id="assetSync"></div>
-    <div class="tablewrap"><table class="perm" style="min-width:1120px"><thead><tr><th>人員</th><th>平台管理</th><th>工作台</th><th>合約庫</th><th>部門（合約庫選「部門」時）</th><th>函文</th><th>法務期限</th><th>設備資產</th><th></th></tr></thead>
+    <div class="tablewrap"><table class="perm" style="min-width:1220px"><thead><tr><th>人員</th><th>平台管理</th><th>工作台</th><th>合約庫</th><th>部門（合約庫選「部門」時）</th><th>函文</th><th>法務期限</th><th>設備資產</th><th>員工旅程</th><th></th></tr></thead>
     <tbody id="pmRows"></tbody></table></div>
-    <div class="note" style="margin-top:10px">系統擁有者（${esc(ST.owner)}）永遠有全部權限。函文：管理 = 可以登記、修改、刪除；檢視 = 只能看，但被指定為承辦人的那幾筆可以改狀態、加處理紀錄和附件。工作台：正職可管理全部，PT 只看排班、每日檢核和自己的工作。合約庫：管理 = 可改分類規則；編輯 = 可匯入、修改、上傳；檢視 = 只能看全部合約。</div>`;
+    <div class="note" style="margin-top:10px">系統擁有者（${esc(ST.owner)}）永遠有全部權限。函文：管理 = 可以登記、修改、刪除；檢視 = 只能看，但被指定為承辦人的那幾筆可以改狀態、加處理紀錄和附件。工作台：正職可管理全部，PT 只看排班、每日檢核和自己的工作。合約庫：管理 = 可改分類規則；編輯 = 可匯入、修改、上傳；檢視 = 只能看全部合約。員工旅程：管理 = 可以新增員工、勾選所有項目、改清單範本；檢視 = 只能看（被指派到的項目還是可以勾、上傳附件）。</div>`;
   const rowHtml = (r, i) => `<tr data-i="${i}">
     <td><input data-k="name" value="${esc(r.name)}" placeholder="姓名" style="font-weight:600;margin-bottom:3px"><input data-k="email" value="${esc(r.email)}" placeholder="name@swag.live" ${r.email === ST.owner ? "disabled" : ""}></td>
     <td><select data-k="admin" class="v-${esc(r.admin)}">${OPT(["", "是"], r.admin)}</select></td>
@@ -1032,10 +1298,11 @@ function permTab() {
     <td><select data-k="docs" class="v-${esc(r.docs || "—")}">${OPT(V.docs, r.docs || "—")}</select></td>
     <td><select data-k="legal" class="v-${esc(r.legal)}">${OPT(V.legal, r.legal)}</select></td>
     <td><select data-k="assets" class="v-${esc(r.assets)}">${OPT(V.assets, r.assets)}</select></td>
+    <td><select data-k="journey" class="v-${esc(r.journey || "—")}">${OPT(V.journey || ["管理", "檢視", "—"], r.journey || "—")}</select></td>
     <td>${r.email === ST.owner ? '<span class="note">擁有者</span>' : `<button class="btn small danger" data-rm="${i}">移除</button>`}</td></tr>`;
   const draw = () => {
     const q = ($("#pmQ").value || "").toLowerCase();
-    $("#pmRows").innerHTML = ST.rows.map((r, i) => (!q || (r.name + r.email).toLowerCase().includes(q)) ? rowHtml(r, i) : "").join("") || '<tr><td colspan="9" class="empty">沒有資料</td></tr>';
+    $("#pmRows").innerHTML = ST.rows.map((r, i) => (!q || (r.name + r.email).toLowerCase().includes(q)) ? rowHtml(r, i) : "").join("") || '<tr><td colspan="10" class="empty">沒有資料</td></tr>';
   };
   draw();
   const dirty = () => { permDirty = true; $("#pmSave").disabled = false; };
@@ -1050,7 +1317,7 @@ function permTab() {
     const rm = e.target.closest("[data-rm]");
     if (rm) { const gone = ST.rows.splice(+rm.dataset.rm, 1)[0]; if (gone && gone.assets !== "—") assetCleared.add(gone.email.toLowerCase()); draw(); dirty(); return; }
     const am = e.target.closest("[data-addm]");
-    if (am) { const m = ST.members.find(x => x.email === am.dataset.addm); ST.rows.push({email: m.email, name: m.name, admin: "", work: m.type === "正職" ? "正職" : "PT", contracts: "—", legal: "—", assets: "—", docs: "—", dept: ""}); am.remove(); draw(); dirty(); return; }
+    if (am) { const m = ST.members.find(x => x.email === am.dataset.addm); ST.rows.push({email: m.email, name: m.name, admin: "", work: m.type === "正職" ? "正職" : "PT", contracts: "—", legal: "—", assets: "—", docs: "—", journey: "—", dept: ""}); am.remove(); draw(); dirty(); return; }
   };
   if (C.SUPABASE_URL) assetRoles().then(cur => {
     const box = $("#assetSync"); if (!box) return;
@@ -1059,12 +1326,12 @@ function permTab() {
     const diff = cur.rows.filter(x => { const r = ST.rows.find(y => y.email === x.email.toLowerCase()); return !r || r.assets !== ROLE2V[x.role]; });
     const extra = ST.rows.filter(r => r.assets !== "—" && !cur.rows.some(x => x.email.toLowerCase() === r.email));
     if (!diff.length && !extra.length) { box.innerHTML = '<div class="note" style="margin:-6px 0 10px">✓ 設備資產權限和設備資產系統一致</div>'; return; }
-    diff.forEach(x => { const e = x.email.toLowerCase(); let r = ST.rows.find(y => y.email === e); if (!r) { r = {email: e, name: "", admin: "", work: "—", contracts: "—", legal: "—", assets: "—", docs: "—", dept: ""}; ST.rows.push(r); } r.assets = ROLE2V[x.role]; });
+    diff.forEach(x => { const e = x.email.toLowerCase(); let r = ST.rows.find(y => y.email === e); if (!r) { r = {email: e, name: "", admin: "", work: "—", contracts: "—", legal: "—", assets: "—", docs: "—", journey: "—", dept: ""}; ST.rows.push(r); } r.assets = ROLE2V[x.role]; });
     if (diff.length) { draw(); dirty(); }
     else if (extra.length) $("#pmSave").disabled = false;
     box.innerHTML = `<div class="banner warn">${diff.length ? `已依設備資產系統帶入 ${diff.length} 人的設備資產權限：${diff.map(x => esc(x.email.split("@")[0]) + "（" + ROLE2V[x.role] + "）").join("、")}。` : ""}${extra.length ? `有 ${extra.length} 人還沒同步到設備資產系統。` : ""}確認後按「儲存變更」，兩邊就會一致。</div>`;
   });
-  $("#pmAdd").onclick = () => { ST.rows.unshift({email: "", name: "", admin: "", work: "—", contracts: "—", legal: "—", assets: "—", docs: "—", dept: ""}); $("#pmQ").value = ""; draw(); dirty(); const f = $('#pmRows tr input[data-k="name"]'); if (f) f.focus(); };
+  $("#pmAdd").onclick = () => { ST.rows.unshift({email: "", name: "", admin: "", work: "—", contracts: "—", legal: "—", assets: "—", docs: "—", journey: "—", dept: ""}); $("#pmQ").value = ""; draw(); dirty(); const f = $('#pmRows tr input[data-k="name"]'); if (f) f.focus(); };
   $("#pmSave").onclick = async () => {
     const b = $("#pmSave");
     const rows = ST.rows.filter(r => r.email.trim());
