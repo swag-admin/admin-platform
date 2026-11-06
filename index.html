@@ -206,12 +206,13 @@ const MODULES = [
   {id: "info", name: "行政資料", show: p => p.isAdmin || (ME && ME.info > 0)},
   {id: "assets", name: "設備資產", show: p => p.assets !== "—"},
   {id: "settings", name: "設定", show: p => p.isAdmin || isFT(p)},
-  {id: "worksettings", hidden: true, parent: "settings", show: p => isFT(p)}
+  {id: "worksettings", hidden: true, parent: "settings", show: p => isFT(p)},
+  {id: "duties", hidden: true, parent: "work", show: p => isFT(p)}
 ];
 const allowed = id => { const m = MODULES.find(x => x.id === id); return !!(m && ME && m.show(ME.perm)); };
 /* 工作台（同一個 iframe）裡各分頁對應的平台選單 */
-const WORK_TAB = {work: "tasks", pt: "schedule", sop: "sop", vendors: "vendors", worksettings: "settings"};
-const TAB_VIEW = {tasks: "work", schedule: "pt", sop: "sop", vendors: "vendors", settings: "worksettings", overview: "work"};
+const WORK_TAB = {work: "tasks", pt: "schedule", sop: "sop", vendors: "vendors", worksettings: "settings", duties: "duties"};
+const TAB_VIEW = {tasks: "work", schedule: "pt", sop: "sop", vendors: "vendors", settings: "worksettings", overview: "work", duties: "duties"};
 
 /* ================= 登入 ================= */
 function showLogin(msg) {
@@ -312,6 +313,7 @@ function showFrame(id) {
   }
   // 工作台設定：上面放一排設定分頁，方便回到平台的權限設定
   if (id === "worksettings" && ME.perm.isAdmin) { const bar = document.createElement("div"); bar.className = "frame-sub"; bar.innerHTML = settingsTabs("work"); $("#main").insertBefore(bar, f); f.classList.add("with-sub"); }
+  else if ((id === "work" || id === "duties") && isFT(ME.perm)) { const bar = document.createElement("div"); bar.className = "frame-sub"; bar.innerHTML = `<div class="subtabs"><button data-go="work" aria-current="${id === "work"}">工作清單</button><button data-go="duties" aria-current="${id === "duties"}">工作分配</button></div>`; $("#main").insertBefore(bar, f); f.classList.add("with-sub"); }
   else f.classList.remove("with-sub");
   f.hidden = false;
   if (key === "work") workTab(f, WORK_TAB[id], workTab.pendingTask);
@@ -340,6 +342,7 @@ window.__pfWorkTab = t => {
   view = v;
   history.replaceState(null, "", "#" + v);
   renderNav();
+  const bar = document.querySelector("#main .frame-sub"); if (bar) bar.querySelectorAll("[data-go]").forEach(b => b.setAttribute("aria-current", String(b.dataset.go === v)));
 };
 function openTaskInWork(id) { workTab.pendingTask = id; go("work"); }
 
@@ -409,8 +412,14 @@ function drawHome(r) {
     (r.contracts.list.length ? `<ul class="plain">${r.contracts.list.map(x => `<li><span class="t">${esc(x.counterparty)} <span class="note">${esc(x.dept || "")}</span></span>${dayChip(x.days)}</li>`).join("")}</ul>` : '<div class="note">沒有即將到期的合約</div>')
     + (r.contracts.missing && ME.perm.contracts !== "部門" ? `<div class="note" style="margin-top:10px">另有 ${r.contracts.missing} 份需追蹤的合約還沒填到期日</div>` : "")}</div>`);
   if (r.work && !r.work.error && ME.perm.work === "正職") cards.push(`<div class="card m-work"><h3>✅ 我的待辦 <span class="note">${r.work.mine} 項</span><button class="go" data-go="work">工作台 →</button></h3>${r.work.list.length ? `<ul class="plain">${r.work.list.map(x => `<li class="click" data-task="${esc(x.id)}"><span class="t">${esc(x.title)}</span>${x.due ? dayChip(daysLeft(x.due, r.today)) : `<span class="chip">${esc(x.status || "未設期限")}</span>`}</li>`).join("")}${r.work.mine > r.work.list.length ? `<li class="note">還有 ${r.work.mine - r.work.list.length} 項…</li>` : ""}</ul>` : '<div class="note">目前沒有待辦</div>'}</div>`);
-  if (r.journey) cards.push(`<div class="card m-journey"><h3>🧭 員工旅程 <span class="note">我負責 ${r.journey.open || 0} 項</span>${ME.perm.journey !== "—" ? '<button class="go" data-go="journey">全部 →</button>' : ""}</h3>${r.journey.error ? `<div class="note">${esc(r.journey.error)}</div>` :
-    r.journey.list.length ? `<ul class="plain">${r.journey.list.map(x => `<li class="click" data-jyo="${esc(x.jid)}"><span class="t">${x.stage === "離職" ? "👋" : "🎉"} ${esc(x.name)}：${esc(x.item)}${x.att ? " 📎" : ""}</span>${dayChip(x.days)}</li>`).join("")}${r.journey.open > r.journey.list.length ? `<li class="note">還有 ${r.journey.open - r.journey.list.length} 項…</li>` : ""}</ul>` : '<div class="note">目前沒有派給你的到離職項目</div>'}</div>`);
+  if (r.journey) {
+    // 依員工合併：只列有我負責項目的人，顯示幾項和最近的期限，不列細項
+    const g = {};
+    (r.journey.list || []).forEach(x => { const o = g[x.jid] = g[x.jid] || {jid: x.jid, name: x.name, stage: x.stage, n: 0, days: x.days}; o.n++; if (x.days < o.days) o.days = x.days; });
+    const ppl = Object.values(g).sort((a, b) => a.days - b.days), show = ppl.slice(0, 6);
+    cards.push(`<div class="card m-journey"><h3>🧭 員工旅程 <span class="note">我負責 ${ppl.length} 人・${r.journey.open || 0} 項</span>${ME.perm.journey !== "—" ? '<button class="go" data-go="journey">全部 →</button>' : ""}</h3>${r.journey.error ? `<div class="note">${esc(r.journey.error)}</div>` :
+      ppl.length ? `<ul class="plain">${show.map(x => `<li class="click" data-jyo="${esc(x.jid)}"><span class="t">${x.stage === "離職" ? "👋" : "🎉"} ${esc(x.name)} <span class="note">${esc(x.stage)}・${x.n} 項</span></span>${dayChip(x.days)}</li>`).join("")}${ppl.length > show.length ? `<li class="note">還有 ${ppl.length - show.length} 人…</li>` : ""}</ul>` : '<div class="note">目前沒有派給你的到離職項目</div>'}</div>`);
+  }
   if (r.work && !r.work.error) cards.push(`<div class="card m-pt"><h3>🕘 今天的 PT 班表<button class="go" data-go="pt">排班 →</button></h3>${r.work.shifts.length ? `<ul class="plain">${r.work.shifts.map(s => `<li><span class="t">${esc(s.name)} <span class="note">${esc(s.type || "")}</span></span><span class="note">${esc(s.start)}–${esc(s.end)}</span></li>`).join("")}</ul>` : '<div class="note">今天沒有排班</div>'}</div>`);
   if (ME.perm.assets !== "—") cards.push(`<div class="card m-asset" id="assetCard"><h3>🖥️ 設備資產<button class="go" data-go="assets">前往 →</button></h3><div class="note">資產、借用、簽收單、維修紀錄</div></div>`);
   $("#homeBody").innerHTML = (k.length ? `<div class="kpis">${k.join("")}</div>` : "") + `<div class="grid g3">${cards.join("")}</div>` + (r.team ? teamHtml(r.team, r.today) : "");
