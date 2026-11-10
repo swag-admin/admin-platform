@@ -199,6 +199,7 @@ const MODULES = [
   {id: "pt", name: "PT 排班", show: p => p.work !== "—"},
   {id: "sop", name: "SOP", show: p => p.work !== "—"},
   {id: "vendors", name: "廠商資訊", show: p => p.work !== "—"},
+  {id: "mail", name: "郵件收發", show: p => p.work !== "—"},
   {id: "contracts", name: "合約庫", show: p => p.contracts !== "—"},
   {id: "docs", name: "函文", show: p => p.docs !== "—"},
   {id: "legal", name: "法務期限", show: p => p.legal !== "—"},
@@ -211,8 +212,8 @@ const MODULES = [
 ];
 const allowed = id => { const m = MODULES.find(x => x.id === id); return !!(m && ME && m.show(ME.perm)); };
 /* 工作台（同一個 iframe）裡各分頁對應的平台選單 */
-const WORK_TAB = {work: "tasks", pt: "schedule", sop: "sop", vendors: "vendors", worksettings: "settings", duties: "duties"};
-const TAB_VIEW = {tasks: "work", schedule: "pt", sop: "sop", vendors: "vendors", settings: "worksettings", overview: "work", duties: "duties"};
+const WORK_TAB = {work: "tasks", pt: "schedule", sop: "sop", vendors: "vendors", worksettings: "settings", duties: "duties", mail: "mail"};
+const TAB_VIEW = {tasks: "work", schedule: "pt", sop: "sop", vendors: "vendors", settings: "worksettings", overview: "work", duties: "duties", mail: "mail"};
 
 /* ================= 登入 ================= */
 function showLogin(msg) {
@@ -339,10 +340,8 @@ window.__pfWorkTab = t => {
   const v = TAB_VIEW[t];
   if (!v || !(view in WORK_TAB) || v === view || (v === "work" && t === "overview" && view !== "work")) return;
   if (!allowed(v)) return;
-  view = v;
   history.replaceState(null, "", "#" + v);
-  renderNav();
-  const bar = document.querySelector("#main .frame-sub"); if (bar) bar.querySelectorAll("[data-go]").forEach(b => b.setAttribute("aria-current", String(b.dataset.go === v)));
+  route();   // 重畫選單和上方子分頁（工作清單／工作分配只在這兩頁出現）
 };
 function openTaskInWork(id) { workTab.pendingTask = id; go("work"); }
 
@@ -1046,7 +1045,7 @@ async function jyPeople() {
     $("#jpBody").innerHTML = list.map(e => {
       const js = (byEmp[e.id] || []).sort((a, b) => String(b.date).localeCompare(String(a.date)));
       const openOff = js.some(r => r.stage === "離職" && r.status !== "完成");
-      return `<tr${e.active === false ? ' class="jdone"' : ""}><td class="mono">${esc(e.emp_no)}</td><td><b class="ttl">${esc(e.name)}</b>${e.active === false ? ' <span class="chip">已離職</span>' : ""}</td><td>${esc(e.dept || "—")}</td>
+      return `<tr class="click${e.active === false ? " jdone" : ""}" data-jemp="${esc(e.id)}" title="點一下看明細"><td class="mono">${esc(e.emp_no)}</td><td><b class="ttl">${esc(e.name)}</b>${e.active === false ? ' <span class="chip">已離職</span>' : ""}</td><td>${esc(e.dept || "—")}</td>
         <td class="note">${esc(e.email || "—")}</td><td style="white-space:nowrap">${e.hire_date ? showDate(String(e.hire_date).slice(0, 10)) : '<span class="note">—</span>'}</td>
         <td>${js.map(r => { const its = r.items || [], dn = its.filter(i => i.done).length; return `<button class="btn link" data-jy="${esc(r.id)}">${JY_ICON[r.stage]} ${esc(r.stage)} ${r.status === "完成" ? "✓" : dn + "/" + its.length}</button>`; }).join("<br>") || '<span class="note">—</span>'}</td>
         <td style="white-space:nowrap">${JY.canEdit && e.active !== false && !openOff ? `<button class="btn small" data-joff="${esc(e.id)}">👋 辦離職</button>` : ""}</td></tr>`;
@@ -1060,8 +1059,44 @@ async function jyPeople() {
   $("#jyBody").onclick = async e => {
     const o = e.target.closest("[data-jy]"); if (o) return jyDrawer(JY.rows.find(x => x.id === o.dataset.jy));
     const f = e.target.closest("[data-joff]"); if (f) return jyDrawer(null, {stage: "離職", emp: E.rows.find(x => String(x.id) === f.dataset.joff)});
-    if (e.target.closest("[data-jpre]")) { await jyEmps(true); jyPeople(); }
+    if (e.target.closest("[data-jpre]")) { await jyEmps(true); jyPeople(); return; }
+    const tr = e.target.closest("[data-jemp]"); if (tr) { const emp = E.rows.find(x => String(x.id) === tr.dataset.jemp); if (emp) jyEmpDetail(emp, byEmp[emp.id] || []); }
   };
+}
+/** 人員明細：基本資料、員工旅程進度、還沒完成的項目、名下設備 */
+function jyEmpDetail(e, js) {
+  js = js.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const on = js.find(r => r.stage === "到職"), off = js.find(r => r.stage === "離職"), lt = js[0] || {};
+  const openOff = js.some(r => r.stage === "離職" && r.status !== "完成");
+  const t = JY.today || today();
+  const hire = e.hire_date ? String(e.hire_date).slice(0, 10) : on ? on.date : (lt.hireDate || "");
+  const d = document.createElement("div"); d.className = "drawer";
+  const pend = js.flatMap(r => (r.items || []).filter(i => !i.done).map(i => ({r, i, due: jyDue(r, i)}))).sort((a, b) => a.due.localeCompare(b.due));
+  const dd = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : "";
+  d.innerHTML = `<div class="panel wide" role="dialog" aria-label="人員明細"><div class="hdr"><h2>👤 ${esc(e.name)} ${e.active === false ? '<span class="chip">已離職</span>' : '<span class="chip green">在職</span>'}</h2><button class="btn small" data-x>關閉</button></div>
+    <dl class="dl">${dd("員工編號", `<span class="mono">${esc(e.emp_no || "—")}</span>`)}${dd("部門", esc(e.dept || "—"))}${dd("職稱", esc(lt.title || ""))}${dd("直屬主管", esc(lt.boss || ""))}
+      ${dd("公司 Email", esc(e.email || (lt.acct ? lt.acct + "@swag.live" : "—")))}${dd("私人 Email", esc(lt.personalEmail || ""))}
+      ${dd("到職日", hire ? showDate(hire) : "—")}${dd("離職日", off ? `<b>${showDate(off.date)}</b>` : "")}</dl>
+    <div><div class="note" style="margin:4px 0 6px;font-weight:600">員工旅程</div>
+      ${js.length ? `<ul class="plain" style="gap:6px">${js.map(r => { const its = r.items || [], dn = its.filter(i => i.done).length;
+        return `<li class="click" data-jy="${esc(r.id)}"><span class="t">${JY_ICON[r.stage]} ${esc(r.stage)}・${showDate(r.date)}</span><span>${r.status === "完成" ? '<span class="chip green">完成</span>' : `<span class="chip amber">${dn}/${its.length}</span>`} <span class="note">›</span></span></li>`; }).join("")}</ul>`
+        : '<div class="note">沒有員工旅程紀錄（平台上線前到職的同仁）</div>'}</div>
+    ${pend.length ? `<div><div class="note" style="margin:4px 0 6px;font-weight:600">還沒完成的項目（${pend.length}）</div><ul class="plain" style="gap:4px">${pend.map(x => `<li class="click" data-jy="${esc(x.r.id)}"><span class="t">${esc(x.i.t)} <span class="note">${esc(x.r.stage)}・${esc(jyName(x.i.who))}</span></span><span class="note">${showDate(x.due)} ${dayChip(daysLeft(x.due, t))}</span></li>`).join("")}</ul></div>` : ""}
+    <div class="banner" style="margin:0;font-size:12.5px" id="je_ast"><span class="spin"></span> 讀取名下設備…</div>
+    <div class="foot">${JY.canEdit && e.active !== false && !openOff ? '<button class="btn" data-joff>👋 辦離職</button>' : ""}<span class="sp"></span><button class="btn primary" data-x>關閉</button></div></div>`;
+  document.body.appendChild(d);
+  jyAssetsOf(e.id).then(a => {
+    const box = d.querySelector("#je_ast"); if (!box) return;
+    const go = '<button class="btn small" data-go="assets">前往設備資產 →</button>', rows = a.rows || [];
+    box.innerHTML = a.nosession ? `設備資產還沒登入，看不到名下設備。 ${go}` : a.error ? `讀不到設備資產：${esc(a.error)} ${go}`
+      : `<div style="display:flex;gap:8px;align-items:center;margin-bottom:${rows.length ? 6 : 0}px"><b>名下設備</b><span class="note">${rows.length} 件</span><span class="sp" style="flex:1"></span>${go}</div>`
+        + (rows.length ? `<ul class="plain" style="gap:4px">${rows.map(x => `<li><span class="t"><span class="mono">${esc(x.tag)}</span> ${esc(x.name || "")}</span><span class="note">${esc(JY_AST[x.status] || x.status || "")}${x.assigned_date ? "・" + showDate(String(x.assigned_date).slice(0, 10)) + " 起" : ""}</span></li>`).join("")}</ul>` : '<div class="note">目前名下沒有設備</div>');
+  });
+  d.addEventListener("click", ev => {
+    if (ev.target === d || ev.target.closest("[data-x]") || ev.target.closest("[data-go]")) return d.remove();
+    const o = ev.target.closest("[data-jy]"); if (o) { d.remove(); return jyDrawer(JY.rows.find(x => x.id === o.dataset.jy)); }
+    if (ev.target.closest("[data-joff]")) { d.remove(); jyDrawer(null, {stage: "離職", emp: e}); }
+  });
 }
 function jyMine() {
   const t = JY.today || today();
@@ -1415,6 +1450,7 @@ async function sbClient() {
   _sb = supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY, {auth: {persistSession: true, autoRefreshToken: false, detectSessionInUrl: false}});
   return _sb;
 }
+window.__pfSb = () => sbSession();   // 讓工作台（郵件收發）同步員工名單時借用設備資產的登入
 async function sbSession() {
   try { const sb = await sbClient(); if (!sb) return null; const {data: {session}} = await sb.auth.getSession(); return session ? sb : null; } catch (e) { return null; }
 }
