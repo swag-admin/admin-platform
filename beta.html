@@ -3,9 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SWAG 行政平台（左側選單試用）</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Ctext x='16' y='22' font-size='17' font-family='Arial' font-weight='700' fill='white' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
+<title>SWAG 行政平台</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2300A393'/%3E%3Ctext x='16' y='22' font-size='17' font-family='Arial' font-weight='700' fill='white' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;500;600;700&display=swap">
+<script src="js/theme.js"></script>
 <style>
 :root{--bg:#f5f6fa;--surface:#fff;--sunken:#f3f5f9;--line:#e6e9f0;--fg:#1b2233;--muted:#6b7488;--accent:#0f8a78;--accent-2:#14b8a6;--accent-soft:#e6f6f3;--danger:#d9485f;--danger-soft:#fdecef;--warn:#c47a0b;--warn-soft:#fff5e3;--done:#16a34a;--done-soft:#e8f7ee;--blue:#3b6fe0;--blue-soft:#eaf0fd;--violet:#7c5cd6;--violet-soft:#f1ecfc;--rose:#e0567a;--rose-soft:#fdeef3;--amber:#e09a1c;--amber-soft:#fff4df;--r:14px;--shadow:0 1px 2px rgba(20,30,60,.04),0 4px 14px rgba(20,30,60,.05);--hd:58px}
 *{box-sizing:border-box}
@@ -170,37 +171,191 @@ header .menu{top:auto;bottom:48px;left:0;right:auto}
 }
 button,input,select,textarea{font-family:inherit}
 
-/* ===== 深色側欄主題（slate） ===== */
-:root{--bg:#f4f4f9;--line:#e8e8f0;--sunken:#f1f1f7;--fg:#1e2433;--muted:#6b7183;--accent:#3d4860;--accent-2:#56627d;--accent-soft:#ececf4;--r:18px;--shadow:0 1px 2px rgba(30,36,51,.03),0 6px 20px rgba(30,36,51,.05);--sbw:248px}
-body{background:var(--bg)}
-header{background:linear-gradient(180deg,#232a3b 0%,#171c29 100%)!important}
-header .brand{padding:6px 10px 14px;flex-direction:row;align-items:center}
-header .brand i,.mtop .brand i{width:40px;height:40px;border-radius:12px;background:linear-gradient(145deg,#4a5570,#2b3246);color:#fff;font-size:17px;box-shadow:0 4px 12px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.12)}
-header .brand span{display:flex;flex-direction:column;line-height:1.25;font-size:16.5px}
-header .brand span{align-items:flex-start}
-header .brand span small{font-size:11.5px;font-weight:500;color:#8a93a8;letter-spacing:.5px}
-nav .grp{color:#6f788d;font-size:11.5px;margin:16px 12px 6px}
-nav button{color:#c9cfdc;padding:10px 12px;border-radius:12px;font-size:14.5px;font-weight:500}
+/* ===== SWAG 新版介面（配色由 js/theme.js 設定 --pri / --pink / --side） ===== */
+:root{
+  --pri:#00A393;--pink:#00CDB8;--side:#0B0F10;--side2:#151B1C;--grad:linear-gradient(135deg,var(--pink) 0%,var(--pri) 100%);
+  --pri-soft:color-mix(in srgb,var(--pri) 11%,#fff);--pri-soft2:color-mix(in srgb,var(--pri) 6%,#fff);--pri-line:color-mix(in srgb,var(--pri) 32%,#fff);
+  --bg:#F5F4FA;--surface:#fff;--sunken:#F8F7FC;--line:#ECE9F4;--fg:#1E1B2E;--muted:#6E6A85;
+  --accent:var(--pri);--accent-2:var(--pink);--accent-soft:var(--pri-soft);
+  --r:16px;--shadow:0 1px 2px rgba(30,27,46,.04),0 8px 24px rgba(30,27,46,.06);--sbw:248px;--hd:64px;
+}
+body{background:var(--bg);color:var(--fg);font-family:"Huninn","jf-openhuninn","Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
+
+/* 側邊欄 */
+header{background:linear-gradient(180deg,var(--side),var(--side2))!important;color:#C9C4E3}
+header .hd{padding:0 0 0;gap:0}
+header .brand{padding:20px 20px 16px;gap:10px;flex-direction:row;align-items:center}
+header .brand i,.login .brand i{width:36px;height:36px;border-radius:11px;background:var(--grad);color:#fff;font-size:15px;font-weight:800;box-shadow:0 6px 18px color-mix(in srgb,var(--pink) 35%,transparent)}
+header .brand span{display:flex;flex-direction:column;align-items:flex-start;line-height:1.25;font-size:16px;color:#fff;letter-spacing:.3px}
+header .brand span small{font-size:11px;font-weight:400;color:#8E88AE;letter-spacing:0}
+nav{padding:4px 12px 16px;gap:0}
+nav::-webkit-scrollbar{display:block;width:6px}nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:6px}
+nav .grp{font-size:11px;color:#6F6994;letter-spacing:1px;margin:16px 10px 6px}
+nav button{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;color:#C9C4E3;margin:2px 0;font-size:13.5px;font-weight:400;transition:.15s}
 nav button:hover{background:rgba(255,255,255,.06);color:#fff}
-nav button i{width:20px;height:20px;display:grid;place-items:center;color:#9aa3b7}
-nav button i svg{width:19px;height:19px}
-nav button[aria-current=true]{background:linear-gradient(90deg,rgba(255,255,255,.16),rgba(255,255,255,.08));color:#fff;font-weight:600}
+nav button i{width:18px;height:18px;display:grid;place-items:center;color:inherit}
+nav button i svg{width:18px;height:18px}
+nav button[aria-current=true]{background:var(--grad);color:#fff;font-weight:500;box-shadow:0 6px 16px color-mix(in srgb,var(--pri) 35%,transparent)}
 nav button[aria-current=true] i{color:#fff}
-nav button.sub{color:#8f98ad;padding:6px 12px 6px 44px}
-nav button.sub[aria-current=true]{background:rgba(255,255,255,.07);color:#fff}
-nav .bdg,nav button b.n{background:#e5486e!important;color:#fff!important}
-header .me{border-top:1px solid rgba(255,255,255,.08)}
-.mename small{color:#8a93a8}
-.btn.primary{background:#3d4860;border-color:#3d4860;box-shadow:0 3px 10px rgba(30,36,51,.18)}
-.load i{background:linear-gradient(90deg,#3d4860,#6b7896)}
-.card,.kpi{border-color:#ececf3}
-.kpi{padding:18px 20px;gap:2px 16px}
-.kpi .ic{width:48px;height:48px;border-radius:14px;color:var(--mci,#3d4860)}
-.kpi .ic svg{width:22px;height:22px}
-.kpi b{font-size:26px}
-.k-work{--mcs:#ececf6;--mci:#6366f1}.k-pt{--mcs:#fff1df;--mci:#d97706}.k-journey{--mcs:#ffe8ef;--mci:#e11d63}.k-doc{--mcs:#e6efff;--mci:#2563eb}.k-contract{--mcs:#eaf6ef;--mci:#16a34a}.k-legal{--mcs:#f2ecfd;--mci:#7c3aed}.k-asset{--mcs:#f2ecfd;--mci:#7c3aed}
-.login .brand i{background:linear-gradient(145deg,#4a5570,#2b3246)}
-@media(max-width:860px){.mtop{background:#1d2332!important}}
+nav button.sub{padding:6px 12px 6px 40px;font-size:13px;color:#8E88AE;box-shadow:none}
+nav button.sub:hover{color:#fff}
+nav button.sub[aria-current=true]{background:rgba(255,255,255,.08);color:#fff;box-shadow:none}
+nav .bdg,nav button b.n{background:var(--pink)!important;color:#fff!important}
+.sidefoot{padding:14px 18px;border-top:1px solid rgba(255,255,255,.06);font-size:12px;color:#8E88AE;line-height:1.6}
+
+/* 上方工具列 */
+.topbar{position:sticky;top:0;z-index:20;height:64px;margin-left:var(--sbw);display:flex;align-items:center;gap:14px;padding:0 28px;background:rgba(245,244,250,.85);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.topbar .ham{display:none;background:none;border:0;padding:6px;color:var(--fg)}
+.gsearch{position:relative;flex:1;max-width:420px}
+.gsearch input{width:100%;border:1px solid var(--line);background:#fff;border-radius:12px;padding:9px 12px 9px 36px;outline:none}
+.gsearch input:focus{border-color:var(--pri-line);box-shadow:0 0 0 4px color-mix(in srgb,var(--pri) 12%,transparent)}
+.gsearch>svg{position:absolute;left:11px;top:10px;color:var(--muted);width:18px;height:18px}
+.gres{position:absolute;top:44px;left:0;right:0;background:#fff;border-radius:12px;box-shadow:0 12px 30px rgba(30,27,46,.12);border:1px solid var(--line);overflow:hidden;z-index:5}
+.gres button{display:flex;width:100%;gap:10px;align-items:center;padding:9px 14px;border:0;background:none;text-align:left;color:var(--fg)}
+.gres button:hover,.gres button.on{background:var(--pri-soft2)}
+.gres button i{width:18px;height:18px;color:var(--muted);display:grid;place-items:center}.gres button i svg{width:17px;height:17px}
+.gres button small{margin-left:auto;color:var(--muted)}
+.topr{margin-left:auto;display:flex;align-items:center;gap:12px}
+.iconbtn{width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;color:var(--fg);padding:0}
+.iconbtn:hover{border-color:var(--pri-line);color:var(--pri)}
+.iconbtn svg{width:18px;height:18px}
+.topbar .me{position:relative;display:flex;align-items:center;gap:8px;border:0;padding:0;cursor:pointer;color:var(--fg)}
+.topbar .av{display:none}
+.topbar .mename{color:var(--fg);font-size:13.5px;font-weight:600;text-align:right;line-height:1.3}
+.topbar .mename small{color:var(--muted);font-weight:400;font-size:11.5px}
+.topbar .menu{top:46px;bottom:auto;right:0;left:auto;border-radius:14px;box-shadow:0 12px 30px rgba(30,27,46,.12)}
+header .me{display:none}
+
+/* 主畫面 */
+#app main{padding:26px 28px 60px;max-width:1440px}
+#app main.frame{padding:0;max-width:none}
+.view-frame{height:calc(100vh - var(--hd))}
+.view-frame.with-sub{height:calc(100vh - var(--hd) - 56px)}
+h2{font-size:22px;letter-spacing:.2px}
+section>.toolbar:first-child h2{font-size:24px}
+.toolbar{gap:10px;margin-bottom:18px}
+
+/* 首頁問候：漸層橫幅 */
+.hello{background:var(--grad);border-radius:20px;color:#fff;padding:24px 26px;position:relative;overflow:hidden;margin-bottom:18px;align-items:center}
+.hello h2{font-size:22px;color:#fff;position:relative;z-index:1}
+.hello .note{color:rgba(255,255,255,.9);position:relative;z-index:1}
+.hello::after{content:"";position:absolute;right:-60px;top:-80px;width:280px;height:280px;border-radius:50%;background:rgba(255,255,255,.12)}
+.hello::before{content:"";position:absolute;right:120px;bottom:-110px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,.08)}
+
+/* 按鈕 */
+.btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 14px;color:var(--fg);font-weight:500;box-shadow:none}
+.btn:hover{border-color:var(--pri-line)}
+.btn.primary{background:var(--grad);color:#fff;border:0;box-shadow:0 6px 16px color-mix(in srgb,var(--pri) 30%,transparent)}
+.btn.primary:hover{filter:brightness(1.05)}
+.btn.danger{color:#E11D48;border-color:#FAD1DA}
+.btn.small{padding:5px 10px;font-size:12.5px;border-radius:8px}
+.btn.link{color:var(--pri)}
+
+/* 卡片與數字 */
+.card,.kpi,.person,.info-side,.md,.tablewrap{background:#fff;border:1px solid rgba(236,233,244,.7);border-radius:var(--r);box-shadow:var(--shadow)}
+.card{padding:18px 20px}
+.card::before{display:none}
+.card h3{font-size:15px;margin:0 0 12px}
+.card h3 .go{color:var(--pri)}
+.kpis{gap:16px}
+.kpi{padding:16px 18px;gap:2px 14px}
+button.kpi:hover{border-color:var(--pri-line);transform:translateY(-1px)}
+.kpi{transition:.15s}
+.kpi .ic{width:44px;height:44px;border-radius:13px;font-size:19px;background:var(--mcs,var(--pri-soft));color:var(--mci,var(--pri))}
+.kpi .ic svg{width:20px;height:20px}
+.kpi b{font-size:22px;line-height:1.2}
+.kpi span{font-size:12.5px}
+.k-work{--mcs:var(--pri-soft);--mci:var(--pri)}.k-pt{--mcs:#FFF2DE;--mci:#D97706}.k-journey{--mcs:#FFE8F0;--mci:#E8366F}.k-doc{--mcs:#E3F0FF;--mci:#2563EB}.k-contract{--mcs:#E3F6EE;--mci:#14935B}.k-legal{--mcs:#F1ECFC;--mci:#7C5CD6}.k-asset{--mcs:#E6F7F8;--mci:#0E8B94}
+.load{height:6px;background:#EFEDF6;border-radius:6px}.load i{background:var(--grad);border-radius:6px}
+ul.plain{gap:0}
+ul.plain li{padding:10px 0;border-top:1px solid var(--line)}
+ul.plain li:first-child{border-top:0;padding-top:2px}
+li.click:hover .t{color:var(--pri)}
+
+/* 標籤 */
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;background:var(--sunken);color:var(--muted)}
+.chip.red,.chip.amber,.chip.green,.chip.teal,.chip.blue,.chip.violet,.chip.rose{}
+.chip.red::before,.chip.amber::before,.chip.green::before,.chip.teal::before,.chip.blue::before,.chip.violet::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.8}
+.chip.red{background:#FFE6EA;color:#D61F45}.chip.amber{background:#FFF2DE;color:#B45F06}.chip.green{background:#E3F6EE;color:#13804F}.chip.teal{background:var(--pri-soft);color:var(--pri)}.chip.blue{background:#E3F0FF;color:#1D5FD6}.chip.violet{background:#F1ECFC;color:#6D4BD0}
+
+/* 表格 */
+.tablewrap{overflow:auto}
+th{text-align:left;font-weight:600;color:var(--muted);font-size:12px;padding:11px 16px;background:var(--sunken);border-bottom:1px solid var(--line);letter-spacing:0}
+td{padding:12px 16px;border-bottom:1px solid var(--line)}
+tr.click:hover td{background:var(--pri-soft2)}
+
+/* 篩選、輸入 */
+.filters{gap:8px;margin-bottom:14px}
+.filters select,.filters input,.fld input,.fld select,.fld textarea{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 12px}
+.perm input,.perm select{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 8px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--pri-line)!important;box-shadow:0 0 0 4px color-mix(in srgb,var(--pri) 12%,transparent)}
+.fld{font-size:12px;font-weight:500}
+.check input,input[type=checkbox]{accent-color:var(--pri)}
+
+/* 分頁切換（膠囊） */
+.subtabs{display:flex;gap:4px;background:#EAE7F4;border-radius:12px;padding:4px;width:fit-content;margin-bottom:16px}
+.subtabs button{border:0;background:none;padding:7px 16px;border-radius:9px;color:var(--muted);font-weight:500}
+.subtabs button[aria-current=true]{background:#fff;color:var(--fg);border:0;box-shadow:0 1px 4px rgba(30,27,46,.08);font-weight:600}
+.frame-sub{padding:0 28px}
+
+/* 提示 */
+.banner{background:var(--pri-soft2);border:1px solid var(--pri-line);color:var(--fg);border-radius:12px}
+.banner.warn{background:#FFF7E6;border-color:#FDE3B4;color:#8A5400}
+.banner.err{background:#FFE6EA;border-color:#F8C3CE;color:#B0183A}
+
+/* 側拉面板 */
+.drawer{background:rgba(20,17,40,.45);backdrop-filter:blur(3px)}
+.drawer .panel{padding:20px 24px;box-shadow:-20px 0 60px rgba(20,17,40,.18);animation:dIn .22s ease}
+@keyframes dIn{from{transform:translateX(40px);opacity:0}}
+.drawer .hdr{padding-bottom:12px;border-bottom:1px solid var(--line)}
+.drawer .hdr h2{font-size:18px}
+.timeline li::before{background:#E4E1EE}
+.timeline li.past::before{background:var(--pri)}
+
+/* 權限表 */
+.perm select.v-管理,.perm select.v-正職,.perm select.v-是{color:var(--pri)}
+.perm tr.dirty td{background:#FFFBF0}
+
+/* 行政資料 */
+.info-side button.pg[aria-current=true]{background:var(--pri-soft2);color:var(--pri);box-shadow:inset 3px 0 0 var(--pri)}
+.md h3{padding-left:10px;border-left:3px solid var(--pink)}
+
+/* 成員總覽 */
+.person{padding:16px 18px}
+
+/* 登入 */
+.login{background:radial-gradient(1200px 500px at 20% -10%,color-mix(in srgb,var(--pri) 18%,#fff) 0%,transparent 60%),radial-gradient(900px 500px at 110% 110%,color-mix(in srgb,var(--pink) 16%,#fff) 0%,transparent 60%),var(--bg)}
+.login .box{border-radius:20px;box-shadow:0 30px 80px rgba(20,17,40,.12);border-color:var(--line)}
+.login .brand{font-size:20px;color:var(--fg)}
+
+/* 配色視窗 */
+.thov{position:fixed;inset:0;background:rgba(20,17,40,.45);backdrop-filter:blur(3px);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px}
+.thmodal{background:#fff;border-radius:20px;width:min(640px,100%);max-height:90vh;overflow:auto;box-shadow:0 30px 80px rgba(20,17,40,.3);padding:20px 24px}
+.thmodal h3{margin:0 0 14px;font-size:17px;display:flex;align-items:center}
+.thmodal h3 button{margin-left:auto;border:0;background:none;font-size:20px;color:var(--muted)}
+.thgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.thc{cursor:pointer;border:2px solid transparent;border-radius:14px;padding:8px;background:none;text-align:left}
+.thc:hover{background:var(--sunken)}.thc.on{border-color:var(--pri);background:var(--pri-soft2)}
+.thp{display:flex;height:74px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.thc b{display:block;font-size:13px;margin-top:6px}
+.thcustom{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+.thcustom label{display:flex;align-items:center;gap:8px}
+.thcustom input{width:38px;height:30px;border:1px solid var(--line);border-radius:8px;padding:2px;background:#fff}
+
+.mtop{display:none!important}
+@media(max-width:860px){
+  :root{--hd:64px}
+  .topbar{margin-left:0;padding:0 14px}
+  .topbar .ham{display:block}
+  .gsearch{max-width:none}
+  .topbar .mename small{display:none}
+  #app main{padding:18px 14px 60px}
+  .thgrid{grid-template-columns:repeat(2,1fr)}
+  header .brand span{display:flex!important}
+  .kpis{grid-template-columns:1fr 1fr;gap:10px}
+  .kpi{padding:12px;gap:2px 10px}.kpi .ic{width:36px;height:36px}
+  .hello{padding:18px 20px}
+}
 </style>
 </head>
 <body>
@@ -215,14 +370,22 @@ header .me{border-top:1px solid rgba(255,255,255,.08)}
 </div>
 
 <div id="app" hidden>
-  <div class="mtop"><button id="ham" aria-label="選單">☰</button><span id="mttl">SWAG 行政平台</span></div>
+  <div class="mtop"><button aria-label="選單">☰</button><span id="mttl">SWAG 行政平台</span></div>
   <div class="scrim" id="scrim"></div>
   <header><div class="hd">
     <button class="brand" data-go="home"><i>S</i><span>SWAG Admin<small>行政管理平台</small></span></button>
     <nav id="nav"></nav>
-    <div class="me"><button class="av" id="avBtn" aria-label="帳號"></button><span class="mename" id="meName"></span>
-      <div class="menu" id="menu" hidden></div></div>
+    <div class="sidefoot">SWAG 行政管理平台<br>資料與 Google 試算表即時同步</div>
   </div></header>
+  <div class="topbar">
+    <button class="ham" id="ham" aria-label="選單"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <div class="gsearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input id="gq" type="search" placeholder="搜尋功能：函文、員工旅程、PT 排班、SOP…" autocomplete="off"><div class="gres" id="gres" hidden></div></div>
+    <div class="topr">
+      <button class="iconbtn" id="themeBtn" title="平台配色" aria-label="平台配色"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4A4.6 4.6 0 0 0 22 9.8C21.5 5.9 17.2 3 12 3z"/><path d="M7.5 11h.01M10 7h.01M14.5 7h.01M17 11h.01"/></svg></button>
+      <div class="me"><button class="av" id="avBtn" aria-label="帳號"></button><span class="mename" id="meName"></span>
+        <div class="menu" id="menu" hidden></div></div>
+    </div>
+  </div>
   <main id="main"></main>
 </div>
 <div id="toast" class="toast" hidden></div>
@@ -342,7 +505,7 @@ function startApp() {
   route();
 }
 
-const NAV_GROUPS = [["工作台", ["home", "work", "pt", "sop"]], ["行政作業", ["mail", "journey", "assets", "vendors"]], ["文件與法務", ["contracts", "docs", "legal", "info"]], ["系統", ["settings"]]];
+const NAV_GROUPS = [["總覽", ["home"]], ["工作台", ["work", "pt", "sop"]], ["行政作業", ["mail", "journey", "assets", "vendors"]], ["文件與法務", ["contracts", "docs", "legal", "info"]], ["系統", ["settings"]]];
 const SVG_I = {"home": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 10.5 12 3l9 7.5\"/><path d=\"M5 9.5V21h14V9.5\"/><path d=\"M10 21v-6h4v6\"/></svg>", "work": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"4\"/><path d=\"m8 12 3 3 5-6\"/></svg>", "pt": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/></svg>", "sop": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2 5h6a4 4 0 0 1 4 4v11a3 3 0 0 0-3-3H2z\"/><path d=\"M22 5h-6a4 4 0 0 0-4 4v11a3 3 0 0 1 3-3h7z\"/></svg>", "mail": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 12h-6l-2 3h-4l-2-3H2\"/><path d=\"M5.5 5h13l3.5 7v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z\"/></svg>", "journey": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"m15.5 8.5-2 5-5 2 2-5z\"/></svg>", "assets": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"4\" y=\"5\" width=\"16\" height=\"11\" rx=\"2\"/><path d=\"M2 20h20\"/></svg>", "vendors": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 9l1.5-5h15L21 9\"/><path d=\"M4 9v11h16V9\"/><path d=\"M9 20v-6h6v6\"/></svg>", "contracts": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z\"/><path d=\"M14 3v6h6M8 13h8M8 17h5\"/></svg>", "docs": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"2\"/><path d=\"m3 7 9 6 9-6\"/></svg>", "legal": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3v18M7 21h10M5 7h14\"/><path d=\"m5 7-3 6a3 3 0 0 0 6 0zM19 7l-3 6a3 3 0 0 0 6 0z\"/></svg>", "info": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg>", "settings": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1\"/><circle cx=\"15\" cy=\"6\" r=\"2\"/><circle cx=\"9\" cy=\"12\" r=\"2\"/><circle cx=\"17\" cy=\"18\" r=\"2\"/></svg>", "warn": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3 2 20h20z\"/><path d=\"M12 10v4M12 17v.5\"/></svg>"};
 const NAV_ICON = SVG_I;
 function renderNav() {
@@ -441,6 +604,67 @@ document.addEventListener("click", e => {
   const a = e.target.closest("[data-act]");
   if (a && a.dataset.act === "logout") { try { Object.keys(localStorage).filter(k => k === "pf_me" || k.startsWith("pf_home_")).forEach(k => localStorage.removeItem(k)); } catch (e) {} PF.logout(); location.hash = ""; location.reload(); }
 });
+
+/* ================= 上方搜尋：快速跳到功能 ================= */
+const SEARCH_EXTRA = [["duties", "工作分配", "工作台"], ["expense", "固定費用請款", "工作台"], ["worksettings", "工作台設定", "設定"]];
+function searchItems() {
+  const nm = m => typeof m.name === "function" ? m.name(ME.perm) : m.name;
+  const grp = id => (NAV_GROUPS.find(([, ids]) => ids.includes(id)) || ["其他"])[0];
+  const a = MODULES.filter(m => !m.hidden && m.show(ME.perm)).map(m => ({id: m.id, n: nm(m), g: grp(m.id)}));
+  SEARCH_EXTRA.forEach(([id, n, g]) => { if (allowed(id)) a.push({id, n, g}); });
+  return a;
+}
+let gsSel = 0;
+function drawSearch() {
+  const q = $("#gq").value.trim().toLowerCase(), box = $("#gres");
+  if (!q || !ME) { box.hidden = true; return; }
+  const hit = searchItems().filter(x => (x.n + " " + x.g + " " + x.id).toLowerCase().includes(q)).sort((a, b) => !a.n.toLowerCase().includes(q) - !b.n.toLowerCase().includes(q)).slice(0, 8);
+  gsSel = Math.min(gsSel, Math.max(0, hit.length - 1));
+  box.innerHTML = hit.length ? hit.map((x, i) => `<button data-go="${x.id}" class="${i === gsSel ? "on" : ""}"><i>${NAV_ICON[x.id] || NAV_ICON[(MODULES.find(m => m.id === x.id) || {}).parent] || "•"}</i>${esc(x.n)}<small>${esc(x.g)}</small></button>`).join("")
+    : '<div class="empty" style="padding:14px">找不到符合的功能</div>';
+  box.hidden = false;
+}
+$("#gq").addEventListener("input", () => { gsSel = 0; drawSearch(); });
+$("#gq").addEventListener("focus", drawSearch);
+$("#gq").addEventListener("keydown", e => {
+  const bs = [...$("#gres").querySelectorAll("button")];
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); gsSel = (gsSel + (e.key === "ArrowDown" ? 1 : -1) + bs.length) % Math.max(1, bs.length); drawSearch(); }
+  else if (e.key === "Enter" && bs[gsSel]) { bs[gsSel].click(); }
+  else if (e.key === "Escape") { $("#gq").value = ""; drawSearch(); $("#gq").blur(); }
+});
+document.addEventListener("click", e => {
+  if (e.target.closest("#gres [data-go]")) { $("#gq").value = ""; $("#gres").hidden = true; $("#gq").blur(); return; }
+  if (!e.target.closest(".gsearch")) $("#gres").hidden = true;
+});
+
+/* ================= 平台配色 ================= */
+function themeModal() {
+  const T = window.SWAG_THEME, cur = T.load();
+  const card = t => `<button class="thc${cur.id === t.id ? " on" : ""}" data-th="${t.id}"><div class="thp"><div style="background:linear-gradient(180deg,${t.side},${t.side2});width:30%"></div><div style="flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;background:#F5F4FA"><div style="height:12px;border-radius:4px;background:linear-gradient(135deg,${t.pink},${t.pri})"></div><div style="height:8px;width:70%;border-radius:4px;background:#E4E1EE"></div><div style="height:8px;width:50%;border-radius:4px;background:#E4E1EE"></div></div></div><b>${esc(t.n)}</b></button>`;
+  let ov = $("#thov");
+  if (!ov) { ov = document.createElement("div"); ov.id = "thov"; ov.className = "thov"; document.body.appendChild(ov); }
+  ov.innerHTML = `<div class="thmodal" role="dialog" aria-label="平台配色"><h3>平台配色<button data-thx aria-label="關閉">×</button></h3>
+    <div class="thgrid">${T.list.map(card).join("")}</div>
+    <div class="thcustom"><b style="color:var(--fg);width:100%">自訂顏色</b>${[["pri", "主色"], ["pink", "輔色（漸層）"], ["side", "側邊欄"]].map(([k, n]) => `<label><input type="color" data-thk="${k}" value="${/^#/.test(cur[k]) ? cur[k] : "#000000"}">${n}</label>`).join("")}</div>
+    <p class="note" style="margin:14px 0 0">配色只會改你這台電腦看到的畫面，工作台、合約庫會一起換。</p>
+    <div class="foot" style="border:0;padding-top:14px"><button class="btn" data-threset>恢復預設</button><span class="sp"></span><button class="btn primary" data-thx>完成</button></div></div>`;
+  ov.hidden = false;
+  ov.onclick = e => {
+    if (e.target === ov || e.target.closest("[data-thx]")) { ov.hidden = true; return; }
+    const c = e.target.closest("[data-th]");
+    if (c) { T.save(Object.assign({}, T.list.find(t => t.id === c.dataset.th))); themeModal(); return; }
+    if (e.target.closest("[data-threset]")) { T.save(Object.assign({}, T.list[0])); themeModal(); }
+  };
+  ov.oninput = e => {
+    const k = e.target.dataset.thk; if (!k) return;
+    const t = Object.assign({}, T.load(), {id: "custom", n: "自訂"});
+    t[k] = e.target.value;
+    if (k === "side") t.side2 = `color-mix(in srgb,${e.target.value} 85%,#fff)`;
+    T.save(t);
+    ov.querySelectorAll(".thc").forEach(b => b.classList.remove("on"));
+  };
+}
+$("#themeBtn").addEventListener("click", themeModal);
 
 /* ================= 首頁 ================= */
 async function renderHome(sec) {

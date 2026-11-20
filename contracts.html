@@ -2,12 +2,13 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
+<script src="js/theme.js"></script>
 <script src="js/gas-shim.js" data-prefix="ct_" data-module="contracts"></script>
 <style>.pf-view #btnImport,.pf-view #btnRemind,.pf-view #btnExport,.pf-dept #btnSettings{display:none!important}</style>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SWAG 合約庫</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap">
 <script>
 /* 載入檢查：主程式若沒執行，顯示原因 */
 window.__booted=false;
@@ -163,6 +164,41 @@ td.note{min-width:280px;max-width:420px}
 .rtext{width:100%;min-height:150px;border:1px solid var(--line-strong);background:var(--bg);border-radius:var(--r-sm);padding:8px;font:inherit;font-size:13px;resize:vertical}
 .rules textarea{font-family:var(--mono);font-size:12px;min-height:200px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* ===== SWAG 新版介面（合約庫；配色由 js/theme.js 設定） ===== */
+:root,:root[data-theme="dark"]{
+  --pri:#00A393;--pink:#00CDB8;--grad:linear-gradient(135deg,var(--pink) 0%,var(--pri) 100%);
+  --bg:#F5F4FA;--surface:#fff;--raised:#F8F7FC;--line:#ECE9F4;--line-strong:#E1DDEC;
+  --fg:#1E1B2E;--fg-2:#6E6A85;--fg-3:#8E8AA6;
+  --accent:var(--pri);--accent-ink:color-mix(in srgb,var(--pri) 80%,#000);--accent-soft:color-mix(in srgb,var(--pri) 11%,#fff);--on-accent:#fff;
+  --ok:#13804F;--ok-soft:#E3F6EE;--warn:#B45F06;--warn-soft:#FFF2DE;--bad:#D61F45;--bad-soft:#FFE6EA;--info:#1D5FD6;--info-soft:#E3F0FF;--mute-soft:#F0EFF5;
+  --font:"Huninn","jf-openhuninn","Noto Sans TC","PingFang TC",system-ui,sans-serif;
+  --r-sm:10px;--r-md:16px;--shadow:0 30px 80px rgba(20,17,40,.25);--sh:0 1px 2px rgba(30,27,46,.04),0 8px 24px rgba(30,27,46,.06);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#F5F4FA;--surface:#fff;--raised:#F8F7FC;--line:#ECE9F4;--line-strong:#E1DDEC;--fg:#1E1B2E;--fg-2:#6E6A85;--fg-3:#8E8AA6;
+  --accent:var(--pri);--accent-ink:color-mix(in srgb,var(--pri) 80%,#000);--accent-soft:color-mix(in srgb,var(--pri) 11%,#fff);--on-accent:#fff;
+  --ok:#13804F;--ok-soft:#E3F6EE;--warn:#B45F06;--warn-soft:#FFF2DE;--bad:#D61F45;--bad-soft:#FFE6EA;--info:#1D5FD6;--info-soft:#E3F0FF;--mute-soft:#F0EFF5;
+  --shadow:0 30px 80px rgba(20,17,40,.25);color-scheme:light}}
+body{padding-top:26px!important;padding-left:28px!important;padding-right:28px!important}
+h1{font-size:24px}
+.eyebrow{color:var(--pri)}
+.btn{border-color:var(--line);font-weight:500}
+.btn:hover{background:#fff;border-color:color-mix(in srgb,var(--pri) 32%,#fff)}
+.btn.primary{background:var(--grad);border:0;color:#fff;box-shadow:0 6px 16px color-mix(in srgb,var(--pri) 30%,transparent)}
+.btn.primary:hover{filter:brightness(1.05)}
+.stat{border:1px solid rgba(236,233,244,.7);box-shadow:var(--sh);padding:16px 18px}
+.stat .n{font-family:inherit;font-weight:700;font-size:22px}
+.stat[aria-pressed="true"]{border-color:var(--pri);box-shadow:inset 0 0 0 1px var(--pri),var(--sh)}
+.search,select.f{border-color:var(--line);background:#fff}
+.tablebox{border:1px solid rgba(236,233,244,.7);box-shadow:var(--sh)}
+th{background:var(--raised);font-weight:600;padding:11px 14px}
+td{padding:12px 14px}
+tbody tr:hover td{background:color-mix(in srgb,var(--pri) 6%,#fff)}
+.pill{font-weight:600}
+.scrim{background:rgba(20,17,40,.45);backdrop-filter:blur(3px)}
+.banner{border-style:solid;border-color:color-mix(in srgb,var(--pri) 32%,#fff);background:color-mix(in srgb,var(--pri) 6%,#fff)}
+@media (max-width:860px){body{padding-left:14px!important;padding-right:14px!important}}
 </style>
 </head>
 <body>
