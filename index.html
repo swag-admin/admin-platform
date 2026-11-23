@@ -1632,7 +1632,7 @@ async function renderJourney(sec) {
     <div class="banner">行政端的到離職工作：帳號、群組權限、設備、辦公室。HR 人員名單有新的到職、離職時，會列在下方「HR 名單有異動」，按「建立」就會帶入資料。</div>
     <div class="subtabs" id="jyTabs"></div>
     <div id="jyBody"><div class="empty"><span class="spin"></span> 載入中…</div></div>`;
-  try { JY = await PF.call("pf_apiJourney"); } catch (e) { $("#jyBody").innerHTML = `<div class="banner err">${esc(e.message)}</div>`; return; }
+  try { JY = await PF.call("pf_apiJourney"); JY.rows.forEach(jyNorm); } catch (e) { $("#jyBody").innerHTML = `<div class="banner err">${esc(e.message)}</div>`; return; }
   if (view !== "journey") return;
   $("#jyAdd").hidden = !JY.canEdit;
   $("#jyAdd").onclick = () => jyDrawer(null);
@@ -1641,7 +1641,9 @@ async function renderJourney(sec) {
   if (JY.canEdit) jyHrLoad();
   if (jyOpen) { const r = JY.rows.find(x => x.id === jyOpen); jyOpen = ""; if (r) jyDrawer(r); }
 }
-function jyReplace(saved) { if (JY.hr && JY.hr.pending) JY.hr.pending = JY.hr.pending.filter(p => !(p.stage === saved.stage && ((p.empNo && p.empNo === saved.empNo) || p.name === saved.name))); const i = JY.rows.findIndex(x => x.id === saved.id); if (i >= 0) JY.rows[i] = saved; else JY.rows.push(saved); if ($("#jyBody")) jyDraw(); return saved; }
+/** 行政項目全部勾完就算完成（舊資料或刪掉最後一個未完成項目時，後端狀態可能沒更新） */
+function jyNorm(r) { const its = r.items || []; r.status = its.length && its.every(i => i.done) ? "完成" : "進行中"; return r; }
+function jyReplace(saved) { jyNorm(saved); if (JY.hr && JY.hr.pending) JY.hr.pending = JY.hr.pending.filter(p => !(p.stage === saved.stage && ((p.empNo && p.empNo === saved.empNo) || p.name === saved.name))); const i = JY.rows.findIndex(x => x.id === saved.id); if (i >= 0) JY.rows[i] = saved; else JY.rows.push(saved); if ($("#jyBody")) jyDraw(); return saved; }
 function jyDraw() {
   $("#jyTabs").innerHTML = [["board", "到離職進度"], ["people", "人員名單"], ["mine", "我負責的項目"], ["tpl", "清單範本"]].map(([k, n]) => `<button data-jt="${k}" aria-current="${jyTab === k}">${n}</button>`).join("");
   ({board: jyBoard, people: jyPeople, mine: jyMine, tpl: jyTpl})[jyTab]();
