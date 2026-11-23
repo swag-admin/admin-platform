@@ -248,6 +248,7 @@ a.btn{text-decoration:none;color:var(--fg)}
 .ig-foot{display:flex;gap:8px;align-items:center;margin-top:auto}.ig-foot .sp{flex:1}
 .ig-add{border:2px dashed var(--line);background:transparent;box-shadow:none;color:var(--muted);font-weight:600;min-height:160px}
 .ig-add:hover{border-color:var(--pri-line);color:var(--pri)}
+.hr-card{margin-bottom:16px;border:1px solid #FDE3B4!important;background:#FFFCF5!important}.hr-card h3{display:flex;align-items:center;gap:8px}
 .sidefoot{padding:14px 18px;border-top:1px solid rgba(255,255,255,.06);font-size:12px;color:#8E88AE;line-height:1.6}
 
 /* 上方工具列 */
@@ -1627,7 +1628,7 @@ const jyFiles = (r, itemId) => (r.files || []).filter(f => (f.item || "") === it
 const jyMissing = r => (r.items || []).filter(it => it.att && it.done && !it.backfill && !jyFiles(r, it.id).length);
 async function renderJourney(sec) {
   sec.innerHTML = `<div class="toolbar"><h2>員工旅程</h2><span class="note">到職、離職的行政工作</span><span class="sp"></span><button class="btn primary" id="jyAdd" hidden>＋ 新增員工旅程</button></div>
-    <div class="banner">目前只做<b>行政端</b>：帳號、群組權限、設備、辦公室。HR 的項目（勞健保、聘僱合約、薪資）等 HR 串接後再加進來。</div>
+    <div class="banner">行政端的到離職工作：帳號、群組權限、設備、辦公室。HR 人員名單有新的到職、離職時，會列在下方「HR 名單有異動」，按「建立」就會帶入資料。</div>
     <div class="subtabs" id="jyTabs"></div>
     <div id="jyBody"><div class="empty"><span class="spin"></span> 載入中…</div></div>`;
   try { JY = await PF.call("pf_apiJourney"); } catch (e) { $("#jyBody").innerHTML = `<div class="banner err">${esc(e.message)}</div>`; return; }
@@ -1636,12 +1637,24 @@ async function renderJourney(sec) {
   $("#jyAdd").onclick = () => jyDrawer(null);
   $("#jyTabs").onclick = e => { const b = e.target.closest("[data-jt]"); if (b) { jyTab = b.dataset.jt; jyDraw(); } };
   jyDraw();
+  if (JY.canEdit) PF.call("pf_apiHrJourney").then(h => { JY.hr = h; if (view === "journey" && jyTab === "board") jyBoard(); }).catch(e => { JY.hr = {error: e.message}; if (view === "journey" && jyTab === "board") jyBoard(); });
   if (jyOpen) { const r = JY.rows.find(x => x.id === jyOpen); jyOpen = ""; if (r) jyDrawer(r); }
 }
-function jyReplace(saved) { const i = JY.rows.findIndex(x => x.id === saved.id); if (i >= 0) JY.rows[i] = saved; else JY.rows.push(saved); if ($("#jyBody")) jyDraw(); return saved; }
+function jyReplace(saved) { if (JY.hr && JY.hr.pending) JY.hr.pending = JY.hr.pending.filter(p => !(p.stage === saved.stage && ((p.empNo && p.empNo === saved.empNo) || p.name === saved.name))); const i = JY.rows.findIndex(x => x.id === saved.id); if (i >= 0) JY.rows[i] = saved; else JY.rows.push(saved); if ($("#jyBody")) jyDraw(); return saved; }
 function jyDraw() {
   $("#jyTabs").innerHTML = [["board", "到離職進度"], ["people", "人員名單"], ["mine", "我負責的項目"], ["tpl", "清單範本"]].map(([k, n]) => `<button data-jt="${k}" aria-current="${jyTab === k}">${n}</button>`).join("");
   ({board: jyBoard, people: jyPeople, mine: jyMine, tpl: jyTpl})[jyTab]();
+}
+/** HR 試算表裡最近或即將到職／離職、還沒建立員工旅程的人 */
+function jyHrHtml(t) {
+  const h = JY.hr;
+  if (!JY.canEdit) return "";
+  if (!h) return '<div class="card hr-card"><span class="note"><span class="spin"></span> 正在比對 HR 人員名單…</span></div>';
+  if (h.error) return /不支援的操作/.test(h.error) ? "" : `<div class="banner warn">HR 名單讀取失敗：${esc(h.error)}</div>`;
+  if (!h.pending.length && !h.changed.length) return `<div class="card hr-card"><span class="note">✓ HR 名單（${esc(h.tabs.active)}、${esc(h.tabs.left)}）近期的到職、離職都已建立員工旅程</span></div>`;
+  return `<div class="card hr-card"><h3>📋 HR 名單有異動 <span class="chip amber">${h.pending.length + h.changed.length}</span><span class="note" style="margin-left:auto;font-weight:400">來源：HR 試算表「${esc(h.tabs.active)}」「${esc(h.tabs.left)}」</span></h3>
+    <ul class="plain">${h.pending.map((x, i) => `<li><span class="t">${JY_ICON[x.stage]} <b>${esc(x.name)}</b> <span class="note">${esc(x.en)}・${esc(x.dept || "未填部門")}${x.title ? "・" + esc(x.title) : ""}・${x.stage}日 ${showDate(x.date)}</span></span><span style="display:flex;gap:8px;align-items:center">${dayChip(x.days)}<button class="btn small primary" data-hrnew="${i}">建立${x.stage}</button></span></li>`).join("")}
+    ${h.changed.map(x => `<li><span class="t">⚠️ <b>${esc(x.name)}</b> <span class="note">${x.stage}日和 HR 不一樣：平台 ${showDate(x.journeyDate)}，HR ${showDate(x.hrDate)}</span></span><button class="btn small" data-jy="${esc(x.jid)}">打開修改</button></li>`).join("")}</ul></div>`;
 }
 function jyBoard() {
   const t = JY.today || today(), q = jyFilter.q.trim().toLowerCase();
@@ -1652,7 +1665,7 @@ function jyBoard() {
     .sort((a, b) => String(a.date).localeCompare(String(b.date)));
   const kpi = (ic, n, label, color) => `<div class="kpi"><span class="ic">${ic}</span><b class="${color || ""}">${n}</b><span>${label}</span></div>`;
   const miss = JY.rows.reduce((a, r) => a + jyMissing(r).length, 0);
-  $("#jyBody").innerHTML = `<div class="kpis">${kpi("🎉", JY.rows.filter(r => r.stage === "到職" && r.status !== "完成").length, "到職處理中")}${kpi("👋", JY.rows.filter(r => r.stage === "離職" && r.status !== "完成").length, "離職處理中")}${kpi("⚠️", open.filter(x => x.d < 0).length, "逾期待辦", open.some(x => x.d < 0) ? "red" : "")}${kpi("⏰", open.filter(x => x.d >= 0 && x.d <= 3).length, "3 天內到期", "amber")}${kpi("📎", miss, "完成了但還沒附截圖", miss ? "amber" : "")}</div>
+  $("#jyBody").innerHTML = jyHrHtml(t) + `<div class="kpis">${kpi("🎉", JY.rows.filter(r => r.stage === "到職" && r.status !== "完成").length, "到職處理中")}${kpi("👋", JY.rows.filter(r => r.stage === "離職" && r.status !== "完成").length, "離職處理中")}${kpi("⚠️", open.filter(x => x.d < 0).length, "逾期待辦", open.some(x => x.d < 0) ? "red" : "")}${kpi("⏰", open.filter(x => x.d >= 0 && x.d <= 3).length, "3 天內到期", "amber")}${kpi("📎", miss, "完成了但還沒附截圖", miss ? "amber" : "")}</div>
     <div class="filters"><input id="jyQ" type="search" placeholder="搜尋姓名、帳號、部門" value="${esc(jyFilter.q)}">
       <select id="jyStage"><option value="">到職＋離職</option><option>到職</option><option>離職</option></select>
       <select id="jyStatus"><option value="open">處理中</option><option value="done">已完成</option><option value="all">全部</option></select></div>
@@ -1673,7 +1686,10 @@ function jyBoard() {
     const pos = $("#jyQ").selectionStart, f = document.activeElement && document.activeElement.id;
     jyBoard(); if (f === "jyQ") { $("#jyQ").focus(); try { $("#jyQ").setSelectionRange(pos, pos); } catch (_) {} }
   })));
-  $("#jyBody").onclick = e => { const tr = e.target.closest("[data-jy]"); if (tr) jyDrawer(JY.rows.find(x => x.id === tr.dataset.jy)); };
+  $("#jyBody").onclick = e => {
+    const hn = e.target.closest("[data-hrnew]"); if (hn) return jyDrawer(null, {stage: JY.hr.pending[+hn.dataset.hrnew].stage, hr: JY.hr.pending[+hn.dataset.hrnew]});
+    const tr = e.target.closest("[data-jy]"); if (tr) jyDrawer(JY.rows.find(x => x.id === tr.dataset.jy));
+  };
 }
 /** 人員名單：設備資產的全部員工，加上各自的員工旅程狀態 */
 let jyPF = {q: "", dept: "", act: "1"};
@@ -1931,6 +1947,7 @@ function jyDrawer(r, pre) {
   const form = () => {
     const pe = pick || {};
     const v = r ? Object.assign({hireDate: r.stage === "到職" ? r.date : "", leaveDate: r.stage === "離職" ? r.date : ""}, r)
+      : pre && pre.hr ? Object.assign({note: ""}, pre.hr, {hireDate: pre.hr.hireDate || "", leaveDate: pre.hr.leaveDate || ""})
       : pre ? {stage: pre.stage || "到職", name: pe.name || "", empNo: pe.emp_no || "", acct: jyAcct(pe.email), personalEmail: "", dept: pe.dept || "", title: "", boss: "", hireDate: pe.hire_date ? String(pe.hire_date).slice(0, 10) : "", leaveDate: (pre.stage === "離職" ? addDays(t, 14) : ""), note: ""}
       : {stage: "到職", name: "", empNo: "", acct: "", personalEmail: "", dept: "", title: "", boss: "", hireDate: addDays(t, 7), leaveDate: "", note: ""};
     const req = st => `<span id="j_req_${st}" style="color:var(--danger)">${v.stage === (st === "hire" ? "到職" : "離職") ? " *" : ""}</span>`;
