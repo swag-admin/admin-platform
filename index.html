@@ -553,6 +553,16 @@ function startApp() {
     <button data-act="logout">登出</button>`;
   renderNav();
   route();
+  loadInteg();
+}
+/** 整合設定（側邊欄的已整合系統、外部待辦）：每個人都要讀 */
+function loadInteg() {
+  PF.call("pf_apiInteg").then(r => {
+    const changed = JSON.stringify(r) !== JSON.stringify(ME.integ);
+    ME.integ = r;
+    try { localStorage.setItem("pf_me", JSON.stringify(ME)); } catch (e) {}
+    if (changed) renderNav();
+  }).catch(() => {});
 }
 
 const NAV_GROUPS = [["總覽", ["home"]], ["工作台", ["@todo", "work", "pt", "sop"]], ["行政作業", ["mail", "journey", "vendors"]], ["文件與法務", ["docs", "legal", "info"]], ["已整合系統", ["@booking", "assets", "contracts", "@software", "@fixedfee"]], ["系統", ["settings", "notify", "integrations"]]];
@@ -578,7 +588,7 @@ function extLinks() {
 }
 /** 連結設定：整合設定頁存在平台設定（settings.links）；還沒存過就用 config.js 或預設值 */
 function allLinks() {
-  const saved = ME && ME.settings && ME.settings.links;
+  const saved = ME && ME.integ && ME.integ.links;
   return (Array.isArray(saved) && saved.length ? saved : (C.LINKS || DEFAULT_LINKS)).map((l, i) => Object.assign({id: "link" + i}, l));
 }
 function linkOpen(l, p) {
@@ -603,7 +613,7 @@ function renderNav() {
     }).filter(Boolean);
     return parts.length ? `<div class="grp">${g}</div>` + parts.join("") : "";
   };
-  const td = (ME.settings || {}).todo;
+  const td = (ME.integ || {}).todo;
   if (td && td.mode === "external" && td.url && isFT(ME.perm)) { links.push({id: "todo", name: "工作待辦", url: td.url, icon: "work"}); }
   let html = NAV_GROUPS.slice(0, -1).map(groupHtml).join("");
   const rest = MODULES.filter(m => !m.hidden && m.show(ME.perm) && !used.has(m.id) && !NAV_GROUPS[NAV_GROUPS.length - 1][1].includes(m.id));
@@ -823,7 +833,7 @@ function moDraw() {
         <div class="mo-main">
           <div class="mo-t"><b>${esc(it.title)}</b>${it.needImg ? '<span class="chip">需附圖片</span>' : ""}${it.link ? `<a class="note" href="${esc(it.link)}" target="_blank" rel="noopener" data-stop>相關連結 ↗</a>` : ""}</div>
           <div class="note">${moDayLbl(it)}・${esc(moName(it.owner))}${it.desc ? "・" + esc(it.desc) : ""}</div>
-          ${r ? `<div class="mo-rec"><span class="note">✓ ${esc(moName(r.by))} 於 ${showDate(r.at.slice(0, 10))} 完成</span>${r.note ? `<div class="mo-note">${esc(r.note)}</div>` : ""}${(r.imgs || []).length ? `<div class="mo-imgs">${r.imgs.map(u => `<img src="${esc(u)}" alt="附圖" data-zoom>`).join("")}</div>` : ""}</div>` : ""}
+          ${r ? `<div class="mo-rec"><span class="note">✓ ${esc(moName(r.by))} 於 ${showDate(r.at.slice(0, 10))} 完成</span>${r.note ? `<div class="mo-note">${esc(r.note)}</div>` : ""}${(r.imgs || []).length ? `<div class="mo-imgs">${r.imgs.map(i => `<img src="${esc(i.thumb || IMG_PH)}" alt="附圖" data-zoom="${esc(i.id)}">`).join("")}</div>` : ""}</div>` : ""}
         </div>
         <div class="mo-side">${r ? '<span class="chip green">已完成</span>' : dayChip(d)}<div class="note mono">${showDate(due)}</div></div>
       </div>`).join("") || '<div class="empty card">沒有符合的項目</div>'}
@@ -832,19 +842,40 @@ function moDraw() {
     if (e.target.closest("[data-stop]")) return;
     const mm = e.target.closest("[data-mm]"); if (mm) { moMonth = mm.dataset.mm === "0" ? ym(today()) : monthAdd(moMonth, +mm.dataset.mm); renderMonthly($("#main section")); return; }
     const mf = e.target.closest("[data-mf]"); if (mf) { moFilter = mf.dataset.mf; moDraw(); return; }
-    const z = e.target.closest("[data-zoom]"); if (z) { e.stopPropagation(); moZoom(z.src); return; }
+    const z = e.target.closest("[data-zoom]"); if (z) { e.stopPropagation(); moZoom(z.dataset.zoom); return; }
     const ck = e.target.closest("[data-mock]"); if (ck) { e.preventDefault(); const it = MO.items.find(x => x.id === ck.dataset.mock); moRec(it) ? moUndo(it) : moDone(it); return; }
     const row = e.target.closest("[data-mo]"); if (row) moDone(MO.items.find(x => x.id === row.dataset.mo));
   };
 }
-function moZoom(src) { const z = document.createElement("div"); z.className = "mo-zoom"; z.innerHTML = `<img src="${esc(src)}" alt="">`; z.onclick = () => z.remove(); document.body.appendChild(z); }
+const IMG_PH = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60"><rect width="60" height="60" fill="#EFEDF6"/><text x="30" y="36" font-size="18" text-anchor="middle">🖼</text></svg>');
+/** 看原圖：經由後端讀取 */
+async function moZoom(fid) {
+  const z = document.createElement("div"); z.className = "mo-zoom"; z.innerHTML = '<span class="spin" style="color:#fff"></span>';
+  z.onclick = () => z.remove(); document.body.appendChild(z);
+  try { const f = await PF.call("apiMonthlyImg", [fid]); z.innerHTML = `<img src="data:${esc(f.mime)};base64,${f.b64}" alt="${esc(f.name)}">`; }
+  catch (e) { z.innerHTML = `<div class="banner err">${esc(e.message)}</div>`; }
+}
+/** 上傳前先縮小：原圖最長邊 1600px、縮圖 120px（縮圖存在試算表，列表直接顯示） */
+function moShrink(file, max, q) {
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); res(c.toDataURL("image/jpeg", q));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("讀不到這張圖片")); };
+    img.src = url;
+  });
+}
 async function moUndo(it) {
   try { MO = await PF.call("apiMonthlyDone", [it.id, moMonth, null]); moDraw(); toast("已改回未完成"); } catch (e) { toast(e.message); }
 }
 /** 完成（或查看、修改這個月的紀錄）：備註＋圖片 */
 function moDone(it) {
   const r = moRec(it) || {note: "", imgs: []}, isDone = !!moRec(it);
-  let imgs = (r.imgs || []).slice();
+  let imgs = (r.imgs || []).map(i => Object.assign({}, i));   // 舊圖 {id, thumb}；新加的 {name, b64, thumb}
   const hist = Object.entries((MO.recs || {})[it.id] || {}).filter(([m]) => m !== moMonth).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 6);
   const d = document.createElement("div");
   d.className = "drawer";
@@ -857,10 +888,14 @@ function moDone(it) {
     ${hist.length ? `<div><div class="note" style="margin-bottom:6px">之前的紀錄</div><ul class="plain">${hist.map(([m, h]) => `<li><span class="t">${m.replace("-", "/")}・${esc(moName(h.by))}${h.note ? "：" + esc(h.note) : ""}</span><span class="note">${(h.imgs || []).length ? "🖼 " + h.imgs.length : ""}</span></li>`).join("")}</ul></div>` : ""}
     <div class="foot">${isDone ? '<button class="btn" data-undo>改回未完成</button>' : ""}${MO.canEdit ? '<button class="btn" data-edit>編輯項目</button>' : ""}<span class="sp"></span><button class="btn primary" data-save>${isDone ? "儲存紀錄" : "標記完成"}</button></div>
   </div>`;
-  const paint = () => { d.querySelector("#mo_imgs").innerHTML = imgs.map((u, i) => `<span class="mo-th"><img src="${esc(u)}" alt=""><button data-rmimg="${i}" aria-label="移除">×</button></span>`).join("") || '<span class="note">還沒有圖片</span>'; };
+  const paint = () => { d.querySelector("#mo_imgs").innerHTML = imgs.map((u, i) => `<span class="mo-th"><img src="${esc(u.thumb || IMG_PH)}" alt=""><button data-rmimg="${i}" aria-label="移除">×</button></span>`).join("") || '<span class="note">還沒有圖片</span>'; };
   paint();
   d.querySelector("#mo_file").onchange = async ev => {
-    for (const f of ev.target.files) { if (!/^image\//.test(f.type)) continue; imgs.push(await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(f); })); }
+    for (const f of ev.target.files) {
+      if (!/^image\//.test(f.type)) continue;
+      if (imgs.length >= 4) { toast("每個月最多 4 張圖片"); break; }
+      try { const big = await moShrink(f, 1600, .85), thumb = await moShrink(f, 120, .6); imgs.push({name: f.name.replace(/\.[^.]*$/, "") + ".jpg", mime: "image/jpeg", b64: big.split(",")[1], thumb}); } catch (err) { toast(err.message); }
+    }
     ev.target.value = ""; paint();
   };
   d.addEventListener("click", async e => {
@@ -870,7 +905,8 @@ function moDone(it) {
     if (e.target.closest("[data-edit]")) { d.remove(); return moEdit(it); }
     if (e.target.closest("[data-save]")) {
       if (it.needImg && !imgs.length) return toast("這一項需要附圖片");
-      try { MO = await PF.call("apiMonthlyDone", [it.id, moMonth, {note: d.querySelector("#mo_note").value.trim(), imgs}]); d.remove(); moDraw(); toast(isDone ? "已儲存" : "已完成 ✓"); } catch (err) { toast(err.message); }
+      try { const sv = d.querySelector("[data-save]"); sv.disabled = true; sv.textContent = imgs.some(i => i.b64) ? "上傳中…" : "儲存中…";
+      try { MO = await PF.call("apiMonthlyDone", [it.id, moMonth, {note: d.querySelector("#mo_note").value.trim(), keep: imgs.filter(i => i.id).map(i => i.id), add: imgs.filter(i => i.b64)}]); } catch (err) { sv.disabled = false; sv.textContent = isDone ? "儲存紀錄" : "標記完成"; throw err; } d.remove(); moDraw(); toast(isDone ? "已儲存" : "已完成 ✓"); } catch (err) { toast(err.message); }
     }
   });
   document.body.appendChild(d);
@@ -894,11 +930,11 @@ function moEdit(it) {
     <div class="foot">${isNew ? "" : '<button class="btn danger" data-del>停用這一項</button>'}<span class="sp"></span><button class="btn primary" data-save>${isNew ? "新增" : "儲存"}</button></div></div>`;
   d.addEventListener("click", async e => {
     if (e.target === d || e.target.closest("[data-x]")) return d.remove();
-    if (e.target.closest("[data-del]")) { try { MO = await PF.call("apiMonthlySave", [Object.assign({}, it, {off: true})]); d.remove(); moDraw(); toast("已停用（之前的紀錄會保留）"); } catch (err) { toast(err.message); } return; }
+    if (e.target.closest("[data-del]")) { try { MO = await PF.call("apiMonthlySave", [Object.assign({}, it, {off: true}), moMonth]); d.remove(); moDraw(); toast("已停用（之前的紀錄會保留）"); } catch (err) { toast(err.message); } return; }
     if (e.target.closest("[data-save]")) {
       const v = {id: it.id, title: d.querySelector("#me_t").value.trim(), day: d.querySelector("#me_d").value, owner: d.querySelector("#me_o").value, desc: d.querySelector("#me_desc").value.trim(), link: d.querySelector("#me_l").value.trim(), needImg: d.querySelector("#me_img").checked};
       if (!v.title) return toast("請填寫項目名稱");
-      try { MO = await PF.call("apiMonthlySave", [v]); d.remove(); moDraw(); toast(isNew ? "已新增" : "已儲存"); } catch (err) { toast(err.message); }
+      try { MO = await PF.call("apiMonthlySave", [v, moMonth]); d.remove(); moDraw(); toast(isNew ? "已新增" : "已儲存"); } catch (err) { toast(err.message); }
     }
   });
   document.body.appendChild(d);
@@ -908,7 +944,7 @@ function moEdit(it) {
 const ROLE_OPTS = [["ft", "正職"], ["pt", "PT"]];
 let IG = null;
 async function renderInteg(sec) {
-  const st = ME.settings || {};
+  const st = ME.integ || {};
   IG = {links: allLinks().map(l => Object.assign({}, l)), todo: Object.assign({mode: "builtin", url: ""}, st.todo || {})};
   sec.innerHTML = `<div class="toolbar"><h2>整合設定</h2><span class="note">同事已建置的系統以連結方式整合（顯示在側邊欄「已整合系統」）</span><span class="sp"></span><button class="btn primary" id="igSave">儲存設定</button></div>
     <div id="igMsg"></div>
@@ -966,12 +1002,8 @@ async function igSave() {
   if (IG.todo.mode === "external" && !/^https:\/\//.test(IG.todo.url = $("#igTodoU").value.trim())) return toast("請填外部待辦系統的網址（https://）");
   b.disabled = true;
   try {
-    const next = Object.assign({}, ME.settings || {}, {links, todo: {mode: IG.todo.mode, url: IG.todo.mode === "external" ? $("#igTodoU").value.trim() : ""}});
-    const saved = await PF.call("pf_apiSaveSettings", [next]);
-    if (!saved || !Array.isArray(saved.links)) {
-      $("#igMsg").innerHTML = '<div class="banner warn">後端還沒有支援儲存整合設定（需要更新平台的 Apps Script）。這次的修改只會暫時套用在你這台電腦，重新整理後會恢復。</div>';
-      ME.settings = Object.assign({}, ME.settings, {links: next.links, todo: next.todo});
-    } else { ME.settings = saved; $("#igMsg").innerHTML = ""; toast("已儲存，側邊欄已更新"); }
+    ME.integ = await PF.call("pf_apiIntegSave", [{links, todo: {mode: IG.todo.mode, url: IG.todo.mode === "external" ? $("#igTodoU").value.trim() : ""}}]);
+    $("#igMsg").innerHTML = ""; toast("已儲存，側邊欄已更新");
     try { localStorage.setItem("pf_me", JSON.stringify(ME)); } catch (e) {}
     renderNav();
   } catch (e) { toast(e.message); }
