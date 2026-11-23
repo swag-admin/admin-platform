@@ -343,6 +343,27 @@ table.xt{border-collapse:collapse;width:100%;min-width:900px}
 .card.dragging{opacity:.4}
 .col.dragover{outline:2px dashed var(--accent);outline-offset:-2px;background:var(--accent-soft)}
 .role-pt .adm{display:none!important}
+/* PT 班別分組 */
+.ck-top2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start}
+@media (max-width:760px){.ck-top2{grid-template-columns:1fr}}
+.ck-top2 .ck-notes{background:#FFF8EA;border:1px solid #F0DDB4;border-radius:8px;padding:10px 12px}
+@media (prefers-color-scheme:dark){.ck-top2 .ck-notes{background:var(--mid-soft);border-color:var(--line)}}
+.ck-shifts{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+@media (max-width:600px){.ck-shifts{grid-template-columns:1fr;gap:6px}.ck-sh{padding:7px 10px}.ck-sh .ic{width:28px;height:28px;font-size:14px}.ck-shp{flex-direction:row;align-items:baseline}.ck-shp .load{display:none}.ck-sh.all{justify-content:flex-start}}
+.ck-sh{font:inherit;color:var(--fg);text-align:left;display:flex;align-items:center;gap:10px;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;min-width:0}
+.ck-sh:hover{border-color:var(--accent)}
+.ck-sh.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 2px var(--accent-soft)}
+.ck-sh .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:17px;flex:none}
+.ck-shm{display:flex;flex-direction:column;min-width:0;flex:1}.ck-shm .note{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ck-shp{display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-size:12px;color:var(--muted);flex:none}.ck-shp b{font-size:18px;color:var(--fg)}.ck-shp .load{width:60px}
+.ck-sh.all{justify-content:center}
+.ck-gt{font-size:14px;margin:6px 0 -4px;display:flex;gap:6px;align-items:center}
+.ck-sec h3{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.ck-sc{font-size:11px;padding:1px 8px;border-radius:999px;background:var(--mid-soft);color:var(--mid);font-weight:500}.ck-sc.ok{background:var(--accent-soft);color:var(--accent)}
+.ck-fold{display:block;width:100%;text-align:left;font:inherit;font-size:12.5px;color:var(--muted);background:none;border:0;border-top:1px dashed var(--line);padding:8px;margin-top:4px;cursor:pointer;line-height:1.6}
+.ck-fold:hover{color:var(--accent)}
+.ck-by b{color:var(--fg);font-weight:500}
+.ck-item.on .ck-by{color:var(--muted)}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;z-index:50}
 @media (prefers-reduced-motion:no-preference){.card,.shift{transition:border-color .15s}}
 /* ===== SWAG 新版介面（工作台；配色由 js/theme.js 設定） ===== */
