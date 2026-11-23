@@ -248,6 +248,7 @@ a.btn{text-decoration:none;color:var(--fg)}
 .ig-foot{display:flex;gap:8px;align-items:center;margin-top:auto}.ig-foot .sp{flex:1}
 .ig-add{border:2px dashed var(--line);background:transparent;box-shadow:none;color:var(--muted);font-weight:600;min-height:160px}
 .ig-add:hover{border-color:var(--pri-line);color:var(--pri)}
+.hr-acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.hr-card ul.plain li{align-items:center}
 .hr-card{margin-bottom:16px;border:1px solid #FDE3B4!important;background:#FFFCF5!important}.hr-card h3{display:flex;align-items:center;gap:8px}
 .sidefoot{padding:14px 18px;border-top:1px solid rgba(255,255,255,.06);font-size:12px;color:#8E88AE;line-height:1.6}
 
@@ -1637,7 +1638,7 @@ async function renderJourney(sec) {
   $("#jyAdd").onclick = () => jyDrawer(null);
   $("#jyTabs").onclick = e => { const b = e.target.closest("[data-jt]"); if (b) { jyTab = b.dataset.jt; jyDraw(); } };
   jyDraw();
-  if (JY.canEdit) PF.call("pf_apiHrJourney").then(h => { JY.hr = h; if (view === "journey" && jyTab === "board") jyBoard(); }).catch(e => { JY.hr = {error: e.message}; if (view === "journey" && jyTab === "board") jyBoard(); });
+  if (JY.canEdit) jyHrLoad();
   if (jyOpen) { const r = JY.rows.find(x => x.id === jyOpen); jyOpen = ""; if (r) jyDrawer(r); }
 }
 function jyReplace(saved) { if (JY.hr && JY.hr.pending) JY.hr.pending = JY.hr.pending.filter(p => !(p.stage === saved.stage && ((p.empNo && p.empNo === saved.empNo) || p.name === saved.name))); const i = JY.rows.findIndex(x => x.id === saved.id); if (i >= 0) JY.rows[i] = saved; else JY.rows.push(saved); if ($("#jyBody")) jyDraw(); return saved; }
@@ -1645,17 +1646,72 @@ function jyDraw() {
   $("#jyTabs").innerHTML = [["board", "到離職進度"], ["people", "人員名單"], ["mine", "我負責的項目"], ["tpl", "清單範本"]].map(([k, n]) => `<button data-jt="${k}" aria-current="${jyTab === k}">${n}</button>`).join("");
   ({board: jyBoard, people: jyPeople, mine: jyMine, tpl: jyTpl})[jyTab]();
 }
-/** HR 試算表裡最近或即將到職／離職、還沒建立員工旅程的人 */
+/** HR 試算表裡最近或即將到職／離職、還沒建立員工旅程的人；並對照設備資產的員工名單 */
+let jyHrAst = {};   // 資產系統員工 id → 名下設備數
+async function jyHrLoad() {
+  try { JY.hr = await PF.call("pf_apiHrJourney"); } catch (e) { JY.hr = {error: e.message}; }
+  jyHrRedraw();
+  if (JY.hr.error) return;
+  const E = await jyEmps();
+  if (E && E.ok) {
+    const ids = JY.hr.pending.filter(p => p.stage === "離職").map(p => (jyFindEmp(p) || {}).id).filter(Boolean);
+    jyHrAst = {};
+    if (ids.length) { try { const sb = await sbSession(); const {data} = await sb.from("assets").select("holder_id").in("holder_id", ids); (data || []).forEach(x => jyHrAst[x.holder_id] = (jyHrAst[x.holder_id] || 0) + 1); } catch (e) {} }
+  }
+  jyHrRedraw();
+}
+function jyHrRedraw() { if (view === "journey" && jyTab === "board") jyBoard(); }
+function jyHrAsset(x) {
+  if (!JYE) return '<span class="note"><span class="spin"></span></span>';
+  if (!JYE.ok) return "";
+  const e = jyFindEmp(x);
+  if (x.stage === "到職") return e ? '<span class="chip green" title="設備資產的員工名單已經有這個人">資產名單 ✓</span>'
+    : JYE.admin ? `<button class="btn small" data-hrast="${esc(x.key)}" title="加到設備資產的員工名單，之後才能配發設備">＋ 加到資產名單</button>` : '<span class="chip">資產名單未建立</span>';
+  if (!e) return '<span class="chip">不在資產名單</span>';
+  const n = jyHrAst[e.id] || 0;
+  if (n) return `<span class="chip amber" title="到資產管理系統收回設備">名下 ${n} 件設備</span>`;
+  if (e.active === false) return '<span class="chip green">資產名單已停用 ✓</span>';
+  return JYE.admin ? `<button class="btn small" data-hroff="${esc(x.key)}" title="名下沒有設備，在設備資產的員工名單標記為離職">資產名單設為離職</button>` : '<span class="chip">資產名單仍在職</span>';
+}
 function jyHrHtml(t) {
   const h = JY.hr;
   if (!JY.canEdit) return "";
   if (!h) return '<div class="card hr-card"><span class="note"><span class="spin"></span> 正在比對 HR 人員名單…</span></div>';
   if (h.error) return /不支援的操作/.test(h.error) ? "" : `<div class="banner warn">HR 名單讀取失敗：${esc(h.error)}</div>`;
-  if (!h.pending.length && !h.changed.length) return `<div class="card hr-card"><span class="note">✓ HR 名單（${esc(h.tabs.active)}、${esc(h.tabs.left)}）近期的到職、離職都已建立員工旅程</span></div>`;
-  return `<div class="card hr-card"><h3>📋 HR 名單有異動 <span class="chip amber">${h.pending.length + h.changed.length}</span><span class="note" style="margin-left:auto;font-weight:400">來源：HR 試算表「${esc(h.tabs.active)}」「${esc(h.tabs.left)}」</span></h3>
-    <ul class="plain">${h.pending.map((x, i) => `<li><span class="t">${JY_ICON[x.stage]} <b>${esc(x.name)}</b> <span class="note">${esc(x.en)}・${esc(x.dept || "未填部門")}${x.title ? "・" + esc(x.title) : ""}・${x.stage}日 ${showDate(x.date)}</span></span><span style="display:flex;gap:8px;align-items:center">${dayChip(x.days)}<button class="btn small primary" data-hrnew="${i}">建立${x.stage}</button></span></li>`).join("")}
-    ${h.changed.map(x => `<li><span class="t">⚠️ <b>${esc(x.name)}</b> <span class="note">${x.stage}日和 HR 不一樣：平台 ${showDate(x.journeyDate)}，HR ${showDate(x.hrDate)}</span></span><button class="btn small" data-jy="${esc(x.jid)}">打開修改</button></li>`).join("")}</ul></div>`;
+  if (!h.pending.length && !h.changed.length) return `<div class="card hr-card"><span class="note">✓ HR 名單（${esc(h.tabs.active)}、${esc(h.tabs.left)}）近期的到職、離職都已處理</span></div>`;
+  const past = h.pending.filter(x => x.days < 0);
+  return `<div class="card hr-card"><h3>📋 HR 名單有異動 <span class="chip amber">${h.pending.length + h.changed.length}</span>${past.length ? `<button class="btn small" data-hrallpast style="margin-left:8px">已過日期的 ${past.length} 位全部標記已處理</button>` : ""}<span class="note" style="margin-left:auto;font-weight:400">來源：HR 試算表「${esc(h.tabs.active)}」「${esc(h.tabs.left)}」</span></h3>
+    <div class="note" style="margin:-4px 0 8px">在平台外已經處理好的人，按「已處理」就不會再出現（只記在平台，不會改 HR 的表）。</div>
+    <ul class="plain">${h.pending.map((x, i) => `<li><span class="t">${JY_ICON[x.stage]} <b>${esc(x.name)}</b> <span class="note">${esc(x.en)}・${esc(x.dept || "未填部門")}${x.title ? "・" + esc(x.title) : ""}・${x.stage}日 ${showDate(x.date)}</span></span><span class="hr-acts">${jyHrAsset(x)}${dayChip(x.days)}<button class="btn small" data-hrdone="${esc(x.key)}">已處理</button><button class="btn small primary" data-hrnew="${i}">建立${x.stage}</button></span></li>`).join("")}
+    ${h.changed.map(x => `<li><span class="t">⚠️ <b>${esc(x.name)}</b> <span class="note">${x.stage}日和 HR 不一樣：平台 ${showDate(x.journeyDate)}，HR ${showDate(x.hrDate)}</span></span><span class="hr-acts"><button class="btn small" data-hrdone="${esc(x.key)}">忽略</button><button class="btn small" data-jy="${esc(x.jid)}">打開修改</button></span></li>`).join("")}</ul></div>`;
 }
+async function jyHrAct(e) {
+  const k = e.target.closest("[data-hrdone]"), all = e.target.closest("[data-hrallpast]"), ad = e.target.closest("[data-hrast]"), off = e.target.closest("[data-hroff]");
+  if (!k && !all && !ad && !off) return false;
+  const btn = e.target.closest("button"); btn.disabled = true;
+  const P = JY.hr.pending, byKey = key => P.find(x => x.key === key);
+  try {
+    if (k || all) {
+      const keys = k ? [k.dataset.hrdone] : P.filter(x => x.days < 0).map(x => x.key);
+      if (all && !confirmTwice(btn, `確定把 ${keys.length} 位標記已處理？`)) { btn.disabled = false; return true; }
+      JY.hr = await PF.call("pf_apiHrDismiss", [keys]);
+      toast(`已標記 ${keys.length} 位為已處理`);
+    } else if (ad) {
+      const x = byKey(ad.dataset.hrast);
+      await jyAddEmp({emp_no: x.empNo || jyNextEmpNo(), name: x.name, dept: x.dept, email: x.acct ? x.acct + "@swag.live" : null, hire_date: x.hireDate || null});
+      toast("已加到設備資產的員工名單");
+    } else if (off) {
+      const x = byKey(off.dataset.hroff), emp = jyFindEmp(x), sb = await sbSession();
+      const {error} = await sb.from("employees").update({active: false}).eq("id", emp.id);
+      if (error) throw new Error(error.message);
+      await jyEmps(true); toast("已在設備資產名單標記離職");
+    }
+  } catch (err) { toast(err.message); }
+  jyHrRedraw();
+  return true;
+}
+/** 重要操作按兩次才執行 */
+function confirmTwice(btn, msg) { if (btn.dataset.sure === "1") return true; btn.dataset.sure = "1"; btn.textContent = msg + "（再按一次）"; return false; }
 function jyBoard() {
   const t = JY.today || today(), q = jyFilter.q.trim().toLowerCase();
   const open = JY.rows.flatMap(r => (r.items || []).filter(i => !i.done).map(i => ({r, i, d: daysLeft(jyDue(r, i), t)})));
@@ -1686,7 +1742,8 @@ function jyBoard() {
     const pos = $("#jyQ").selectionStart, f = document.activeElement && document.activeElement.id;
     jyBoard(); if (f === "jyQ") { $("#jyQ").focus(); try { $("#jyQ").setSelectionRange(pos, pos); } catch (_) {} }
   })));
-  $("#jyBody").onclick = e => {
+  $("#jyBody").onclick = async e => {
+    if (await jyHrAct(e)) return;
     const hn = e.target.closest("[data-hrnew]"); if (hn) return jyDrawer(null, {stage: JY.hr.pending[+hn.dataset.hrnew].stage, hr: JY.hr.pending[+hn.dataset.hrnew]});
     const tr = e.target.closest("[data-jy]"); if (tr) jyDrawer(JY.rows.find(x => x.id === tr.dataset.jy));
   };
