@@ -100,9 +100,54 @@ window.PF = (function () {
       await needLogin();
       j = await post({fn, args: args || [], s: session});
     }
+    previewState(j.preview || null);
     if (!j.ok) throw new Error(j.error || '發生錯誤');
     return j.data;
   }
+
+  /* 以其他人身分預覽：網址加 ?as=對方Email（平台管理員才能用），上方會出現提示和「結束預覽」 */
+  function clearLocalCache() {
+    try { Object.keys(localStorage).filter(k => /^pf_(work_v1|home_|jy_|me$)/.test(k)).forEach(k => localStorage.removeItem(k)); } catch (e) {}
+  }
+  function previewState(pv) {
+    let had = '';
+    try { had = localStorage.getItem('pf_preview') || ''; } catch (e) {}
+    if (pv) {
+      if (had !== pv.as) { try { localStorage.setItem('pf_preview', pv.as); } catch (e) {} }
+      if (!document.getElementById('pfPreview') && document.body) {
+        const b = document.createElement('div');
+        b.id = 'pfPreview';
+        b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#7c3aed;color:#fff;font:14px/1.4 system-ui,sans-serif;padding:8px 14px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;box-shadow:0 2px 10px rgba(0,0,0,.2)';
+        b.innerHTML = '<span>👀 正在以 <b></b> 的身分預覽（只能看，不能修改資料）</span><button type="button" style="background:#fff;color:#5b21b6;border:0;border-radius:8px;padding:5px 12px;font:inherit;font-weight:600;cursor:pointer">結束預覽</button>';
+        b.querySelector('b').textContent = pv.as;
+        b.querySelector('button').onclick = async () => {
+          b.querySelector('button').disabled = true;
+          try { await call('pf_apiPreviewStop'); } catch (e) {}
+          try { localStorage.removeItem('pf_preview'); } catch (e) {}
+          clearLocalCache();
+          location.reload();
+        };
+        document.body.appendChild(b);
+      }
+    } else if (had) {
+      try { localStorage.removeItem('pf_preview'); } catch (e) {}
+      const b = document.getElementById('pfPreview'); if (b) b.remove();
+    }
+  }
+  (function startPreviewFromUrl() {
+    let as = '';
+    try { as = new URLSearchParams(location.search).get('as') || ''; } catch (e) {}
+    if (!as) return;
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+    setTimeout(async () => {
+      try {
+        await call('pf_apiPreviewStart', [as]);
+        try { localStorage.setItem('pf_preview', as); } catch (e) {}
+        clearLocalCache();
+        location.reload();
+      } catch (e) { alert('無法開始預覽：' + e.message); }
+    }, 0);
+  })();
 
   /** 用 Google 的 ID Token 登入；回傳 {me} 或 {denied, email} */
   async function loginWithToken(idToken) {
@@ -147,7 +192,7 @@ window.PF = (function () {
   }
 
   return {
-    call, loginWithToken, perf: () => perfLog.slice(), renderButton, logout, getIdToken,
+    call, loginWithToken, perf: () => perfLog.slice(), previewing: () => { try { return localStorage.getItem('pf_preview') || ''; } catch (e) { return ''; } }, renderButton, logout, getIdToken,
     hasSession: () => !!session,
     setLoginHandler: f => { onNeedLogin = f; }
   };

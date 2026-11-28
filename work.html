@@ -469,7 +469,8 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
   var KEY='pf_work_v1', who='', cache=null, started=false;
   try{who=(JSON.parse(localStorage.getItem('pf_me')||'null')||{}).email||''}catch(e){}
   try{cache=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){}
-  if(!cache||!who||cache.who!==who||!cache.code)cache=null;
+  var pv='';try{pv=localStorage.getItem('pf_preview')||''}catch(e){}
+  if(!cache||!who||cache.who!==who||!cache.code||pv)cache=null;   // 預覽別人的畫面時不用、也不存暫存
   function run(code,data,err){
     if(started)return;started=true;
     window.__bootData=data;window.__bootError=err||'';
@@ -499,8 +500,9 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
       .withFailureHandler(function(e){if(!started)window.__diag('無法載入程式：'+(e&&e.message||e)+'。請確認 Code.gs 已更新成最新版並重新部署「新版本」。')})
       .apiBoot(cache?cache.hash:'');
     function finish(res){
-      var code=res.code||cache.code;
-      if(who)save({who:who,hash:res.hash||'',code:code,data:res.error?null:res.data,at:Date.now()});
+      var code=res.code||(cache&&cache.code)||'';
+      if(!code){if(!started)window.__diag(res.error?('讀取資料失敗：'+res.error):'無法載入程式，請重新整理頁面。');return}
+      if(who&&!pv)save({who:who,hash:res.hash||'',code:code,data:res.error?null:res.data,at:Date.now()});
       if(!started){run(code,res.data,res.error);return}
       if(res.code&&cache&&res.hash!==cache.hash){newVersionBar();return}
       if(res.data&&!res.error){

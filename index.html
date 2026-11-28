@@ -946,7 +946,7 @@ function moEdit(it) {
 /* ================= 整合設定 ================= */
 const ROLE_OPTS = [["ft", "正職"], ["pt", "PT"]];
 let IG = null;
-async /** 整合設定：每次打開都先向伺服器拿最新設定，不用這台電腦存的舊資料，避免存檔時把別人填好的網址蓋掉 */
+/** 整合設定：每次打開都先向伺服器拿最新設定，不用這台電腦存的舊資料，避免存檔時把別人填好的網址蓋掉 */
 async function renderInteg(sec) {
   sec.innerHTML = `<div class="toolbar"><h2>整合設定</h2></div><div class="empty"><span class="spin"></span> 讀取最新設定…</div>`;
   try {
