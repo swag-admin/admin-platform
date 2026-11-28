@@ -946,9 +946,20 @@ function moEdit(it) {
 /* ================= 整合設定 ================= */
 const ROLE_OPTS = [["ft", "正職"], ["pt", "PT"]];
 let IG = null;
+async /** 整合設定：每次打開都先向伺服器拿最新設定，不用這台電腦存的舊資料，避免存檔時把別人填好的網址蓋掉 */
 async function renderInteg(sec) {
+  sec.innerHTML = `<div class="toolbar"><h2>整合設定</h2></div><div class="empty"><span class="spin"></span> 讀取最新設定…</div>`;
+  try {
+    ME.integ = await PF.call("pf_apiInteg");
+    try { localStorage.setItem("pf_me", JSON.stringify(ME)); } catch (e) {}
+  } catch (e) { sec.innerHTML = `<div class="toolbar"><h2>整合設定</h2></div><div class="banner err">讀取設定失敗：${esc(e.message)}</div>`; return; }
+  if (view !== "integrations") return;
+  renderNav();
+  renderInteg0(sec);
+}
+function renderInteg0(sec) {
   const st = ME.integ || {};
-  IG = {links: allLinks().map(l => Object.assign({}, l)), todo: Object.assign({mode: "builtin", url: ""}, st.todo || {})};
+  IG = {links: allLinks().map(l => Object.assign({}, l)), todo: Object.assign({mode: "builtin", url: ""}, st.todo || {}), ver: String(st.ver || "")};
   sec.innerHTML = `<div class="toolbar"><h2>整合設定</h2><span class="note">同事已建置的系統以連結方式整合（顯示在側邊欄「已整合系統」）</span><span class="sp"></span><button class="btn primary" id="igSave">儲存設定</button></div>
     <div id="igMsg"></div>
     <div class="card ig-card"><div class="ig-hd"><span class="ig-ic">${NAV_ICON.work}</span><div class="ig-tt"><b>工作待辦</b><div class="note">目前使用平台內建的工作待辦；之後若改用主管建置的待辦系統，切換成「外部系統」並填網址即可，側邊欄會多一個連結</div></div>
@@ -1005,7 +1016,8 @@ async function igSave() {
   if (IG.todo.mode === "external" && !/^https:\/\//.test(IG.todo.url = $("#igTodoU").value.trim())) return toast("請填外部待辦系統的網址（https://）");
   b.disabled = true;
   try {
-    ME.integ = await PF.call("pf_apiIntegSave", [{links, todo: {mode: IG.todo.mode, url: IG.todo.mode === "external" ? $("#igTodoU").value.trim() : ""}}]);
+    ME.integ = await PF.call("pf_apiIntegSave", [{links, ver: IG.ver, todo: {mode: IG.todo.mode, url: IG.todo.mode === "external" ? $("#igTodoU").value.trim() : ""}}]);
+    IG.ver = String(ME.integ.ver || "");
     $("#igMsg").innerHTML = ""; toast("已儲存，側邊欄已更新");
     try { localStorage.setItem("pf_me", JSON.stringify(ME)); } catch (e) {}
     renderNav();
