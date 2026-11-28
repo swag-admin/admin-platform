@@ -1634,13 +1634,27 @@ async function renderJourney(sec) {
     <div class="banner">行政端的到離職工作：帳號、群組權限、設備、辦公室。HR 人員名單有新的到職、離職時，會列在下方「HR 名單有異動」，按「建立」就會帶入資料。</div>
     <div class="subtabs" id="jyTabs"></div>
     <div id="jyBody"><div class="empty"><span class="spin"></span> 載入中…</div></div>`;
-  try { JY = await PF.call("pf_apiJourney"); JY.rows.forEach(jyNorm); } catch (e) { $("#jyBody").innerHTML = `<div class="banner err">${esc(e.message)}</div>`; return; }
-  if (view !== "journey") return;
-  $("#jyAdd").hidden = !JY.canEdit;
-  $("#jyAdd").onclick = () => jyDrawer(null);
-  $("#jyTabs").onclick = e => { const b = e.target.closest("[data-jt]"); if (b) { jyTab = b.dataset.jt; jyDraw(); } };
+  // 讀取加速：先顯示上次的資料（存在這台電腦），背景再抓最新的
+  const jyKey = "pf_jy_" + (ME && ME.email);
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem(jyKey) || "null"); } catch (e) {}
+  const setup = () => {
+    $("#jyAdd").hidden = !JY.canEdit;
+    $("#jyAdd").onclick = () => jyDrawer(null);
+    $("#jyTabs").onclick = e => { const b = e.target.closest("[data-jt]"); if (b) { jyTab = b.dataset.jt; jyDraw(); } };
+  };
+  if (cached && Array.isArray(cached.rows)) { JY = cached; JY.rows.forEach(jyNorm); setup(); jyDraw(); }
+  let fresh;
+  try { fresh = await PF.call("pf_apiJourney"); }
+  catch (e) { if (!cached) $("#jyBody").innerHTML = `<div class="banner err">${esc(e.message)}</div>`; else toast("員工旅程更新失敗：" + e.message); return; }
+  try { localStorage.setItem(jyKey, JSON.stringify(fresh)); } catch (e) {}
+  if (view !== "journey" || !$("#jyBody")) return;
+  JY = Object.assign(fresh, JY && cached ? {hr: JY.hr, ctCount: JY.ctCount} : {});
+  JY.rows.forEach(jyNorm);
+  setup();
   jyDraw();
   if (JY.canEdit) jyHrLoad();
+  jyCtCounts();
   if (jyOpen) { const r = JY.rows.find(x => x.id === jyOpen); jyOpen = ""; if (r) jyDrawer(r); }
 }
 /** 行政項目全部勾完就算完成（舊資料或刪掉最後一個未完成項目時，後端狀態可能沒更新） */
@@ -1733,7 +1747,7 @@ function jyBoard() {
       const its = r.items || [], d = its.filter(i => i.done).length, late = its.filter(i => !i.done && daysLeft(jyDue(r, i), t) < 0).length;
       const nx = its.filter(i => !i.done).sort((a, b) => a.off - b.off)[0], m = jyMissing(r).length;
       return `<tr class="click${r.status === "完成" ? " jdone" : ""}" data-jy="${esc(r.id)}"><td>${jyStageChip(r.stage)}</td>
-        <td><b class="ttl">${esc(r.name)}</b><div class="note">${esc(r.dept)}${r.title ? "・" + esc(r.title) : ""}</div></td>
+        <td><b class="ttl">${esc(r.name)}</b>${(JY.ctCount || {})[r.id] ? ` <span class="chip violet" title="還沒移交的紙本合約">📄 紙本合約 ${JY.ctCount[r.id]}</span>` : ""}<div class="note">${esc(r.dept)}${r.title ? "・" + esc(r.title) : ""}</div></td>
         <td style="white-space:nowrap">${esc(JY.base[r.stage])} ${showDate(r.date)}<div class="note">${daysLeft(r.date, t) >= 0 ? "還有 " + daysLeft(r.date, t) + " 天" : "已過 " + (-daysLeft(r.date, t)) + " 天"}</div></td>
         <td><div style="display:flex;align-items:center;gap:8px"><div class="load" style="flex:1"><i style="width:${its.length ? d / its.length * 100 : 0}%"></i></div><span class="note">${d}/${its.length}</span></div>${late ? `<span class="chip red" style="margin-top:4px">逾期 ${late}</span>` : ""}</td>
         <td>${nx ? `${esc(nx.t)}<div>${dayChip(daysLeft(jyDue(r, nx), t))} <span class="note">${esc(jyName(nx.who))}</span></div>` : '<span class="chip green">行政項目全部完成</span>'}</td>
@@ -1996,6 +2010,74 @@ async function jyAssetsOf(empId) {
   return error ? {error: error.message} : {rows: data || []};
 }
 const JY_AST = {in_use: "使用中", borrowed: "借用中", repair: "維修中"};
+/* ---------- 員工旅程（離職）：紙本合約移交 ---------- */
+const jyCt = {};   // 員工旅程 id → 合約移交資料（"loading"＝讀取中）
+function jyCtHtml(r) {
+  if (!r || r.stage !== "離職") return "";
+  const v = jyCt[r.id];
+  if (v === undefined) { jyCt[r.id] = "loading"; setTimeout(() => jyCtLoad(r.id)); }
+  if (v === undefined || v === "loading") return `<div id="j_ct" data-jid="${esc(r.id)}"><div class="note"><span class="spin"></span> 讀取紙本合約…</div></div>`;
+  if (!v || v.hidden) return `<div id="j_ct" data-jid="${esc(r.id)}"></div>`;
+  return `<div id="j_ct" data-jid="${esc(r.id)}">${jyCtBody(r, v)}</div>`;
+}
+function jyCtBody(r, v) {
+  const t = JY.today || today(), ed = v.canEdit;
+  const P = v.pending || [], D = v.done || [], roles = v.deptRoles || [];
+  const ppl = (v.people || []).filter(p => p.name && p.name !== r.name);
+  return `<div style="display:flex;gap:8px;align-items:center;margin:6px 0"><span class="chip violet">📄 紙本合約移交</span><span class="note">${P.length ? P.length + " 份待移交" : "沒有待移交的紙本"}</span></div>
+    <div class="note" style="margin-bottom:6px">依合約庫的用印申請、紙本保管人與部門保管人，列出 ${esc(r.name)} 保管中的紙本正本。「可能是紙本」是用印已完成、但還沒確認有沒有紙本的合約。</div>
+    ${roles.length ? `<div class="banner" style="margin:0 0 8px">${esc(r.name)} 是 <b>${roles.map(esc).join("、")}</b> 的紙本合約部門保管人${ed ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><input id="j_ctdept" list="j_ctppl" placeholder="新的部門保管人" style="flex:1 1 160px;padding:6px 10px;border:1px solid var(--line);border-radius:10px"><button class="btn small primary" data-ctdept>更新部門保管人</button></div>` : '<div class="note">需要由員工旅程「管理」或合約庫「編輯」權限的人更新。</div>'}</div>` : ""}
+    ${P.map(c => `<div style="border-bottom:1px solid var(--line);padding:8px 2px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="flex:1 1 200px">${esc(c.counterparty || "（未填合作對象）")}${c.type ? ` <span class="note">${esc(c.type)}</span>` : ""}</b>${c.paper === "yes" ? '<span class="chip violet">紙本正本</span>' : '<span class="chip amber">可能是紙本</span>'}</div>
+      <div class="note">${esc(c.formNo || "")}${c.applyDate ? "・申請 " + showDate(c.applyDate) : ""}・保管依據：${esc(c.by)}</div>
+      ${c.note ? `<div class="note">${esc(c.note)}</div>` : ""}
+      ${ed ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><input data-ctto="${esc(c.id)}" list="j_ctppl" placeholder="接收人" style="flex:1 1 140px;padding:6px 10px;border:1px solid var(--line);border-radius:10px"><input type="date" data-ctdate="${esc(c.id)}" value="${esc(t)}" aria-label="移交日期" style="padding:6px 10px;border:1px solid var(--line);border-radius:10px"><button class="btn small primary" data-ctho="${esc(c.id)}">完成移交</button>${c.paper !== "yes" ? `<button class="btn small" data-ctno="${esc(c.id)}">沒有紙本</button>` : ""}</div>` : ""}
+    </div>`).join("")}
+    ${D.length ? `<div class="note" style="margin:8px 0 4px">已移交</div><ul class="plain" style="gap:4px">${D.map(x => `<li>✅ <b>${esc(x.counterparty || x.formNo || "")}</b> <span class="note">${showDate(x.date)} 移交給 ${esc(x.to)}・${esc(jyName(x.by))} 登記</span></li>`).join("")}</ul>` : ""}
+    ${ed ? `<datalist id="j_ctppl">${ppl.map(p => `<option value="${esc(p.name)}">`).join("")}</datalist>` : ""}
+    ${!ed && P.length ? '<div class="note">需要由員工旅程「管理」或合約庫「編輯」權限的人登記移交。</div>' : ""}`;
+}
+function jyCtPaint(jid) {
+  const box = document.getElementById("j_ct"); if (!box || box.dataset.jid !== jid) return;
+  const r = (JY.rows || []).find(x => x.id === jid); if (!r) return;
+  box.outerHTML = jyCtHtml(r);
+}
+async function jyCtLoad(jid) {
+  try { jyCt[jid] = await PF.call("pf_apiJourneyContracts", [jid]); }
+  catch (e) { jyCt[jid] = {hidden: true}; toast("讀取紙本合約失敗：" + e.message); }
+  jyCtPaint(jid);
+}
+async function jyCtCounts() {
+  try { JY.ctCount = await PF.call("pf_apiJourneyCtCounts"); } catch (e) { JY.ctCount = {}; return; }
+  if (view === "journey" && jyTab === "board" && $("#jyBody")) jyDraw();
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-ctho],[data-ctno],[data-ctdept]"); if (!b) return;
+  const box = b.closest("#j_ct"); if (!box) return;
+  const jid = box.dataset.jid;
+  let fn, args;
+  if (b.dataset.ctho) {
+    const cid = b.dataset.ctho, pick = a => [...box.querySelectorAll(`[${a}]`)].find(x => x.getAttribute(a) === cid) || {};
+    const to = pick("data-ctto").value || "";
+    if (!to.trim()) return toast("請填寫接收人");
+    fn = "pf_apiJourneyHandover"; args = [jid, cid, to.trim(), pick("data-ctdate").value || ""];
+  } else if (b.dataset.ctno !== undefined && b.hasAttribute("data-ctno")) {
+    if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "確定沒有紙本？"; return; }
+    fn = "pf_apiJourneyNoPaper"; args = [jid, b.dataset.ctno];
+  } else {
+    const to = (box.querySelector("#j_ctdept") || {}).value || "";
+    if (!to.trim()) return toast("請填寫新的部門保管人");
+    fn = "pf_apiJourneyDeptCust"; args = [jid, to.trim()];
+  }
+  b.disabled = true;
+  try {
+    jyCt[jid] = await PF.call(fn, args);
+    JY.ctCount = JY.ctCount || {};
+    const n = (jyCt[jid].pending || []).length; if (n) JY.ctCount[jid] = n; else delete JY.ctCount[jid];
+    jyCtPaint(jid);
+    toast(fn === "pf_apiJourneyHandover" ? "已登記移交" : fn === "pf_apiJourneyNoPaper" ? "已標記沒有紙本" : "已更新部門保管人");
+  } catch (err) { toast(err.message); b.disabled = false; }
+});
 function jyDrawer(r, pre) {
   const isNew = !r;
   let editing = isNew, pick = (pre && pre.emp) || null, ast = null;   // pick＝從設備資產名單選到的員工；ast＝名下設備
@@ -2058,6 +2140,7 @@ function jyDrawer(r, pre) {
         <select id="j_icat" style="padding:7px 10px;border:1px solid var(--line);border-radius:10px">${JY.cats.map(c => `<option>${esc(c)}</option>`).join("")}</select>
         <input id="j_idue" type="date" value="${esc(r.date)}" style="padding:7px 10px;border:1px solid var(--line);border-radius:10px">
         <label class="check"><input type="checkbox" id="j_iatt"> 需附件</label><button class="btn" data-jiadd>＋ 新增項目</button></div></div>` : ""}
+      ${r.stage === "離職" ? `<div>${jyCtHtml(r)}</div>` : ""}
       <div><div class="note" style="margin-bottom:6px">處理紀錄</div><ul class="timeline">${(r.log || []).slice().reverse().slice(0, 30).map(l => `<li><b>${esc(jyName(l.by))}</b> <span class="note">${fmtAt(l.at)}</span><div class="note">${esc(l.text)}</div></li>`).join("") || '<li class="note">還沒有紀錄</li>'}</ul></div>
       <div class="foot">${JY.canEdit ? '<button class="btn danger" data-jdel>刪除這筆</button>' : ""}<span class="sp"></span><button class="btn primary" data-x>完成</button></div></div>`;
     if (!ast) loadAst();

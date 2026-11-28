@@ -462,15 +462,53 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 <div id="toast" class="toast" hidden></div>
 
 <script>
-/* 載入主程式：主程式放在 Code.gs 裡，由伺服器傳過來執行，避免 Apps Script 改寫網頁內容 */
+/* 載入主程式：主程式放在 Code.gs 裡，由伺服器傳過來執行，避免 Apps Script 改寫網頁內容
+ * 讀取加速：主程式和上次的資料存在這台電腦，打開時先立刻顯示，背景再向伺服器拿最新資料；
+ *           伺服器上的主程式版本沒變就不重傳。登出平台時會清掉。 */
 (function(){
+  var KEY='pf_work_v1', who='', cache=null, started=false;
+  try{who=(JSON.parse(localStorage.getItem('pf_me')||'null')||{}).email||''}catch(e){}
+  try{cache=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){}
+  if(!cache||!who||cache.who!==who||!cache.code)cache=null;
+  function run(code,data,err){
+    if(started)return;started=true;
+    window.__bootData=data;window.__bootError=err||'';
+    try{(0,eval)(code)}catch(e){window.__diag('程式啟動失敗：'+(e&&e.message||e))}
+  }
+  function save(o){
+    try{localStorage.setItem(KEY,JSON.stringify(o))}
+    catch(e){try{o.data=null;localStorage.setItem(KEY,JSON.stringify(o))}catch(_){}}
+  }
+  function newVersionBar(){
+    var b=document.createElement('div');
+    b.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9999;background:#1f2937;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.25);cursor:pointer';
+    b.textContent='工作台有新版本，點這裡重新整理';b.onclick=function(){location.reload()};
+    document.body.appendChild(b);
+  }
   function start(){
     var st=document.getElementById('status');if(st)st.textContent='載入程式中…';
     if(!(window.google&&google.script&&google.script.run)){window.__diag('這個頁面需要透過 Google Apps Script 的網頁應用程式網址開啟。');return}
+    // 有上次的資料：立刻顯示
+    if(cache&&cache.data)run(cache.code,cache.data,'');
     google.script.run
-      .withSuccessHandler(function(res){window.__bootData=res.data;window.__bootError=res.error;try{(0,eval)(res.code)}catch(e){window.__diag('程式啟動失敗：'+(e&&e.message||e))}})
-      .withFailureHandler(function(e){window.__diag('無法載入程式：'+(e&&e.message||e)+'。請確認 Code.gs 已更新成最新版並重新部署「新版本」。')})
-      .apiBoot();
+      .withSuccessHandler(function(res){
+        var code=res.code||(cache&&res.hash&&cache.hash===res.hash?cache.code:null);
+        if(!code&&res.hash&&!res.code){google.script.run.withSuccessHandler(function(r2){res.code=r2.code;finish(res)}).apiBoot('');return}
+        finish(res);
+      })
+      .withFailureHandler(function(e){if(!started)window.__diag('無法載入程式：'+(e&&e.message||e)+'。請確認 Code.gs 已更新成最新版並重新部署「新版本」。')})
+      .apiBoot(cache?cache.hash:'');
+    function finish(res){
+      var code=res.code||cache.code;
+      if(who)save({who:who,hash:res.hash||'',code:code,data:res.error?null:res.data,at:Date.now()});
+      if(!started){run(code,res.data,res.error);return}
+      if(res.code&&cache&&res.hash!==cache.hash){newVersionBar();return}
+      if(res.data&&!res.error){
+        // 交給主程式：用剛拿到的最新資料重畫（主程式切回畫面時會自動重新讀取）
+        window.__pfPrefetch={apiLoad:{data:res.data,at:Date.now()}};
+        document.dispatchEvent(new Event('visibilitychange'));
+      }
+    }
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();

@@ -10,6 +10,7 @@
     return;
   }
   window.__PLATFORM = true;
+  function pre_k(k) { return String(k); }
   function mk(ok, fail) {
     return new Proxy({}, {
       get: function (_, k) {
@@ -18,6 +19,13 @@
         if (k === 'withUserObject') return function () { return mk(ok, fail); };
         return function () {
           var args = [].slice.call(arguments);
+          // 讀取加速：剛在背景拿到的最新資料（15 秒內），直接交給畫面，不再問一次伺服器
+          var got = window.__pfPrefetch && window.__pfPrefetch[pre_k(k)];
+          if (got && Date.now() - got.at < 15000 && !args.length) {
+            delete window.__pfPrefetch[pre_k(k)];
+            setTimeout(function () { if (ok) ok(got.data); });
+            return;
+          }
           P.call(pre + String(k), args).then(function (r) {
             if (pre + String(k) === 'ct_apiBoot' && r && r.me) {
               window.__ctProxy = !!r.me.depts;

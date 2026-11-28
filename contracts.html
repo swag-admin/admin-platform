@@ -354,6 +354,8 @@ function parseSeal(a){
   if(/簽核中|審核中|待簽|進行中|處理中/.test(a))return {sealState:"簽核中",sealDate:"",sealWho:""};
   return {sealState:"簽核中",sealDate:"",sealWho:a};
 }
+function custOf(c){const m={};String(settings.deptCustodians||"").split(/\r?\n/).forEach(l=>{const i=l.indexOf("=");if(i>0)m[l.slice(0,i).trim().toLowerCase()]=l.slice(i+1).trim();});
+  if(c.custodian)return {who:c.custodian,by:"指定保管人"};const d=String(c.dept||c.deptRaw||"").trim().toLowerCase();if(d&&m[d])return {who:m[d],by:(c.dept||c.deptRaw)+" 部門保管人"};return {who:c.applicant||"",by:"用印申請人"};}
 function withSeal(c){return Object.assign(c,parseSeal(c.approval));}
 function noFileDept(c){const list=String(settings.noFileDepts??"HR, Finance").split(/[,，、\n]/).map(x=>x.trim().toLowerCase()).filter(Boolean);return list.includes(String(c.dept||"").trim().toLowerCase());}
 function missingFile(c){return typeTracked(c.type)&&!noFileDept(c)&&c.sealState!=="作廢"&&!["terminated","archived"].includes(c.status)&&!(c.files&&c.files.length)&&!c.fileUrl;}
@@ -563,6 +565,11 @@ async function openDrawer(id){
         </div>
         <label class="check" style="margin-top:10px"><input id="d_auto" type="checkbox"${c.autoRenew?" checked":""}> 到期自動續約</label>
         ${c.datesAuto?`<p class="hint">期間是從備註自動擷取的，請確認是否正確。</p>`:""}
+        <div class="grid2" style="margin-top:10px">
+          <div class="field"><label for="d_paper">紙本正本</label><select id="d_paper"${ro?" disabled":""}><option value="">未確認</option><option value="yes"${c.paper==="yes"?" selected":""}>有紙本正本</option><option value="no"${c.paper==="no"?" selected":""}>電子簽或沒有紙本</option></select></div>
+          <div class="field"><label for="d_cust">紙本保管人</label><input id="d_cust" type="text"${ro?" disabled":""} value="${esc(c.custodian||"")}" placeholder="${esc(custOf(c).who?custOf(c).who+"（"+custOf(c).by+"）":"未填時依部門保管人或申請人")}"></div>
+        </div>
+        ${(c.handovers||[]).length?`<p class="hint">移交紀錄：${c.handovers.map(h=>`${esc(h.date)} ${esc(h.from)} → ${esc(h.to)}`).join("、")}</p>`:""}
         <div class="field" style="margin-top:10px"><label for="d_memo">內部備註</label><textarea id="d_memo" placeholder="續約條件、終止通知方式、對方窗口…">${esc(c.memo)}</textarea></div>
       </section>
       <section><div class="sect-title">合約檔案</div>
@@ -722,7 +729,7 @@ async function saveDrawer(c){
   const patch={type,typeAuto:type===c.type?!!c.typeAuto:false,status:$("#d_status").value,start,end,
     datesAuto:(start===c.start&&end===c.end)?!!c.datesAuto:false,
     noticeDays:nRaw===""?null:Math.max(0,Number(nRaw)||0),autoRenew:$("#d_auto").checked,
-    note:$("#d_note").value.trim(),owner:$("#d_owner").value.trim(),amount:$("#d_amount").value.trim(),fileUrl:$("#d_file").value.trim(),memo:$("#d_memo").value.trim()};
+    note:$("#d_note").value.trim(),owner:$("#d_owner").value.trim(),amount:$("#d_amount").value.trim(),fileUrl:$("#d_file").value.trim(),memo:$("#d_memo").value.trim(),paper:($("#d_paper")||{}).value||"",custodian:(($("#d_cust")||{}).value||"").trim()};
   try{const saved=await run("apiSaveContract",c.id,patch);setLocal(c.id,saved);closeOverlay();render();toast("已儲存");}
   catch(err){btn.disabled=false;btn.textContent="儲存";toast(errMsg(err));}
 }
@@ -934,6 +941,8 @@ function openSettings(){
       </div>
       <div class="field"><label for="s_nofile">不需留存檔案的費用歸屬（以逗號分隔）</label><input id="s_nofile" type="text" value="${esc(settings.noFileDepts??"HR, Finance")}" placeholder="HR, Finance">
         <span class="hint">這些部門的文件不會出現在「缺合約檔案」。</span></div>
+      <div class="field"><label for="s_cust">紙本合約部門保管人（每行一個：部門=保管人姓名）</label><textarea id="s_cust" spellcheck="false" style="min-height:90px" placeholder="HR=李小明&#10;Marketing=王小華">${esc(settings.deptCustodians||"")}</textarea>
+        <span class="hint">紙本正本沒有指定保管人時，由「費用歸屬」部門的保管人負責；也沒有設定時，視為用印申請人保管。保管人離職時，員工旅程會列出要移交的紙本合約。</span></div>
       <div class="field"><label for="s_root">Google Drive 歸檔資料夾（貼上資料夾網址）</label><input id="s_root" type="text" value="${esc("https:\/\/drive.google.com/drive/folders/"+(settings.driveRoot||DRIVE_ROOT_DEFAULT))}">
         <span class="hint">底下的「公司 › 部門」子資料夾會用來自動判斷上傳位置。</span>
       </div>
@@ -951,7 +960,7 @@ function openSettings(){
 }
 async function saveSettings(reapply){
   const rootIn=$("#s_root").value.trim();const rm=rootIn.match(/folders\/([A-Za-z0-9_-]+)/);
-  const next={types:textToTypes($("#s_types").value),aliases:$("#s_alias").value,noticeDays:Math.max(0,Number($("#s_notice").value)||30),driveRoot:rm?rm[1]:rootIn,reminderEmails:$("#s_mail").value.trim(),noFileDepts:$("#s_nofile").value.trim()};
+  const next={types:textToTypes($("#s_types").value),aliases:$("#s_alias").value,noticeDays:Math.max(0,Number($("#s_notice").value)||30),driveRoot:rm?rm[1]:rootIn,reminderEmails:$("#s_mail").value.trim(),noFileDepts:$("#s_nofile").value.trim(),deptCustodians:($("#s_cust")||{value:""}).value.trim()};
   if(!next.types.length){toast("至少需要一種文件類型");return;}
   const prevRoot=settings.driveRoot;
   settings=Object.assign({},settings,next);

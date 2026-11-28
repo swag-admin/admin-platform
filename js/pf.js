@@ -46,7 +46,27 @@ window.PF = (function () {
     return Promise.race([wait, new Promise(res => setTimeout(() => res(null), 5000))]);
   }
 
+  /* 速度紀錄：網址後面加 ?perf 會在右下角顯示每次呼叫花的時間（加 ?noperf 關閉） */
+  const perfLog = [];
+  try {
+    if (/[?&]perf\b/.test(location.search)) localStorage.setItem('pf_perf', '1');
+    if (/[?&]noperf\b/.test(location.search)) localStorage.removeItem('pf_perf');
+  } catch (e) {}
+  function perfShow(fn, total, server) {
+    perfLog.unshift({fn, total, server, at: new Date().toLocaleTimeString()});
+    perfLog.length = Math.min(perfLog.length, 12);
+    let on = false; try { on = localStorage.getItem('pf_perf') === '1'; } catch (e) {}
+    if (!on || !document.body) return;
+    let el = document.getElementById('pfPerf');
+    if (!el) { el = document.createElement('div'); el.id = 'pfPerf'; el.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:99999;background:rgba(17,24,39,.92);color:#e5e7eb;font:12px/1.5 ui-monospace,monospace;padding:8px 10px;border-radius:10px;max-width:360px;pointer-events:none'; document.body.appendChild(el); }
+    el.innerHTML = '<b>速度紀錄</b>（總時間／伺服器）<br>' + perfLog.map(x => `${x.at} ${x.fn}：${(x.total / 1000).toFixed(1)}s／${x.server == null ? '?' : (x.server / 1000).toFixed(1) + 's'}`).join('<br>');
+  }
   async function post(body) {
+    const t0 = Date.now();
+    try { const j = await post0(body); perfShow(body.fn, Date.now() - t0, j && j.ms); return j; }
+    catch (e) { perfShow(body.fn + '（失敗）', Date.now() - t0, null); throw e; }
+  }
+  async function post0(body) {
     let r;
     try {
       r = await fetch(C.API_URL, {method: 'POST', body: JSON.stringify(body), headers: {'Content-Type': 'text/plain;charset=utf-8'}});
@@ -122,10 +142,12 @@ window.PF = (function () {
     try { google.accounts.id.disableAutoSelect(); } catch (e) {}
     // 一起登出設備資產（Supabase 的登入資料存在同一個網域）
     try { Object.keys(localStorage).filter(k => /^sb-.*-auth-token/.test(k)).forEach(k => localStorage.removeItem(k)); } catch (e) {}
+    // 讀取加速存在這台電腦的資料，登出時一起清掉
+    try { Object.keys(localStorage).filter(k => /^pf_(work_v1|home_|jy_)/.test(k)).forEach(k => localStorage.removeItem(k)); } catch (e) {}
   }
 
   return {
-    call, loginWithToken, renderButton, logout, getIdToken,
+    call, loginWithToken, perf: () => perfLog.slice(), renderButton, logout, getIdToken,
     hasSession: () => !!session,
     setLoginHandler: f => { onNeedLogin = f; }
   };
